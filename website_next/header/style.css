@@ -19,13 +19,20 @@ body {
       text-decoration: none;
       text-transform: lowercase;
 
-      &:hover {
-        opacity: 1;
+      @media (hover: hover) and (pointer: fine) {
+        &:hover {
+          opacity: 1;
+        }
       }
 
       &:active {
         opacity: 1;
         --color: var(--orange);
+      }
+
+      &[data-press] {
+        opacity: 1;
+        --color: var(--white);
       }
 
       > span {

@@ -1,5 +1,6 @@
 import { createHeader } from "./header/index.js";
 import { createRoutePage, normalizePath, resolvePath } from "./routes.js";
+import "./utils/press.js";
 import { getEventAnchor, isPlainLeftClick } from "./utils/event.js";
 import { revealPage, transitionPage } from "./utils/transition.js";
 

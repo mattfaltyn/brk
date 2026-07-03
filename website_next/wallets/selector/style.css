@@ -25,14 +25,21 @@ main.wallets {
           font-size: var(--font-size-base);
         }
 
-        &:hover {
-          color: var(--black);
-          background: var(--white);
+        @media (hover: hover) and (pointer: fine) {
+          &:hover {
+            color: var(--black);
+            background: var(--white);
+          }
         }
 
         &:active {
           color: var(--black);
           background: var(--orange);
+        }
+
+        &[data-press] {
+          color: var(--black);
+          background: var(--white);
         }
 
         &[aria-pressed="true"] {
@@ -44,8 +51,19 @@ main.wallets {
           color: color-mix(in oklch, var(--gray) 76%, transparent);
           background: transparent;
 
-          &:hover,
+          @media (hover: hover) and (pointer: fine) {
+            &:hover {
+              color: var(--red);
+              background: transparent;
+            }
+          }
+
           &:active {
+            color: var(--red);
+            background: transparent;
+          }
+
+          &[data-press] {
             color: var(--red);
             background: transparent;
           }

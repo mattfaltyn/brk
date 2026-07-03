@@ -42,7 +42,7 @@ main.learn {
           display: block;
         }
 
-        label:has(:checked):not(:hover) span {
+        label:has(:checked) span {
           color: var(--black);
           background: var(--gray);
         }
@@ -68,14 +68,21 @@ main.learn {
         color: var(--gray);
       }
 
-      :is(label:hover span, button[data-chart="fullscreen"]:hover) {
-        color: var(--black);
-        background: var(--white);
+      @media (hover: hover) and (pointer: fine) {
+        :is(label:hover span, button[data-chart="fullscreen"]:hover) {
+          color: var(--black);
+          background: var(--white);
+        }
       }
 
       :is(label:active span, button[data-chart="fullscreen"]:active) {
         color: var(--black);
         background: var(--orange);
+      }
+
+      :is(label[data-press] span, button[data-chart="fullscreen"][data-press]) {
+        color: var(--black);
+        background: var(--white);
       }
 
       :is(

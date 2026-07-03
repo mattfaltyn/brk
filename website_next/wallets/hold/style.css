@@ -39,7 +39,14 @@ main.wallets {
       color: inherit;
     }
 
-    &:is(:hover, :focus-visible, :active):not(.holding) {
+    @media (hover: hover) and (pointer: fine) {
+      &:hover:not(.holding) {
+        color: var(--red);
+        background: transparent;
+      }
+    }
+
+    &:is(:focus-visible, :active, [data-press]):not(.holding) {
       color: var(--red);
       background: transparent;
     }

@@ -1,5 +1,6 @@
 main.explore {
-  display: grid;
-  place-items: center;
-  font-size: 4rem;
+  display: flex;
+  height: 100dvh;
+  overflow: hidden;
+  padding: 0;
 }

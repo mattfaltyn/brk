@@ -1,8 +1,20 @@
+import { createChain } from "./chain/index.js";
+
 export function createExplorePage() {
   const main = document.createElement("main");
+  const chain = createChain();
+
   main.className = "explore";
-  const title = document.createElement("h1");
-  title.append("Explore");
-  main.append(title);
+  main.append(chain.element);
+
+  const syncChain = () => chain.setActive(!main.hidden && !document.hidden);
+
+  main.addEventListener("pageactive", syncChain);
+  document.addEventListener("visibilitychange", syncChain);
+  new MutationObserver(syncChain).observe(main, {
+    attributes: true,
+    attributeFilter: ["hidden"],
+  });
+
   return main;
 }

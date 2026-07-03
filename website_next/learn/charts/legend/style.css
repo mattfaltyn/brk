@@ -60,7 +60,29 @@ main.learn {
         text-transform: inherit;
         cursor: pointer;
 
-        &:is(:hover, :focus-visible, [data-active], [data-preview]) {
+        @media (hover: hover) and (pointer: fine) {
+          &:hover {
+            color: var(--black);
+            background: var(--color);
+
+            span,
+            output {
+              color: inherit;
+            }
+          }
+        }
+
+        &[data-press] {
+          color: var(--black);
+          background: var(--color);
+
+          span,
+          output {
+            color: inherit;
+          }
+        }
+
+        &:is(:focus-visible, [data-active], [data-preview]) {
           color: var(--black);
           background: var(--color);
 
