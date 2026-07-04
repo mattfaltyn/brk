@@ -1,6 +1,8 @@
-import { getPlotHeight, insetPlotY, VIEWBOX_WIDTH } from "../viewbox.js";
+import { interpolatePlotValue } from "../interpolate.js";
 import { orderIndexes } from "../order.js";
-import { createBounds, includeBoundValue, scaleY } from "../scale.js";
+import { createBounds, includeBoundValue } from "../scale.js";
+import { createStepXScale } from "../x.js";
+import { createYScale } from "../y.js";
 
 /**
  * @param {LoadedSeries[]} series
@@ -9,7 +11,7 @@ import { createBounds, includeBoundValue, scaleY } from "../scale.js";
  */
 function createStackBounds(series, stackOrder, lineIndexes) {
   const bounds = createBounds();
-  const length = series[0].entries.length;
+  const length = series[0].samples.length;
 
   includeBoundValue(bounds, 0);
 
@@ -18,46 +20,23 @@ function createStackBounds(series, stackOrder, lineIndexes) {
     let positive = 0;
 
     for (const seriesIndex of stackOrder) {
-      const value = series[seriesIndex].entries[index].value;
-      const end = value < 0 ? negative + value : positive + value;
+      const y = series[seriesIndex].samples[index].y;
+      const end = y < 0 ? negative + y : positive + y;
 
-      if (value < 0) negative = end;
+      if (y < 0) negative = end;
       else positive = end;
 
       includeBoundValue(bounds, end);
     }
 
     for (const seriesIndex of lineIndexes) {
-      const value = series[seriesIndex].entries[index].value;
+      const y = series[seriesIndex].samples[index].y;
 
-      includeBoundValue(bounds, value);
+      includeBoundValue(bounds, y);
     }
   }
 
   return bounds;
-}
-
-/**
- * @param {StackedPoint[]} points
- * @param {number} x
- * @param {"y" | "y0" | "y1"} key
- */
-function interpolateStackY(points, x, key) {
-  if (x <= points[0].x) return points[0][key];
-
-  for (let index = 1; index < points.length; index += 1) {
-    const previous = points[index - 1];
-    const next = points[index];
-
-    if (x > next.x) continue;
-
-    const span = next.x - previous.x;
-    const ratio = span ? (x - previous.x) / span : 0;
-
-    return previous[key] + (next[key] - previous[key]) * ratio;
-  }
-
-  return points[points.length - 1][key];
 }
 
 /**
@@ -77,9 +56,8 @@ export function createStackedSeries(loadedSeries, frame, order, scale) {
     order,
   );
 
-  const length = loadedSeries[0].entries.length;
-  const xScale = VIEWBOX_WIDTH / (length - 1);
-  const plotHeight = getPlotHeight(frame);
+  const length = loadedSeries[0].samples.length;
+  const scaleX = createStepXScale(frame, length);
   const plottedSeries = loadedSeries.map(({ series, color }) => ({
     series,
     color,
@@ -88,6 +66,7 @@ export function createStackedSeries(loadedSeries, frame, order, scale) {
   }));
 
   const bounds = createStackBounds(loadedSeries, stackIndexes, lineIndexes);
+  const scalePlotY = createYScale(frame, bounds, scale);
 
   for (const index of stackIndexes) {
     const points = plottedSeries[index].points;
@@ -95,10 +74,18 @@ export function createStackedSeries(loadedSeries, frame, order, scale) {
     plottedSeries[index].hitTest = (_point, pointerX, pointerY) => {
       if (!points.length) return Infinity;
 
-      const y0 = interpolateStackY(points, pointerX, "y0");
-      const y1 = interpolateStackY(points, pointerX, "y1");
-      const top = Math.min(y0, y1);
-      const bottom = Math.max(y0, y1);
+      const plotY0 = interpolatePlotValue(
+        points,
+        pointerX,
+        (point) => point.plotY0,
+      );
+      const plotY1 = interpolatePlotValue(
+        points,
+        pointerX,
+        (point) => point.plotY1,
+      );
+      const top = Math.min(plotY0, plotY1);
+      const bottom = Math.max(plotY0, plotY1);
 
       return pointerY >= top && pointerY <= bottom
         ? 0
@@ -110,46 +97,49 @@ export function createStackedSeries(loadedSeries, frame, order, scale) {
     const points = plottedSeries[index].points;
 
     plottedSeries[index].hitTest = (_point, pointerX, pointerY) =>
-      Math.abs(interpolateStackY(points, pointerX, "y") - pointerY);
+      Math.abs(
+        interpolatePlotValue(points, pointerX, ({ plotY }) => plotY) -
+          pointerY,
+      );
   }
 
   for (let index = 0; index < length; index += 1) {
     let negative = 0;
     let positive = 0;
-    const x = index * xScale;
 
     for (const seriesIndex of stackIndexes) {
-      const { date, value } = loadedSeries[seriesIndex].entries[index];
-      const start = value < 0 ? negative : positive;
-      const end = start + value;
+      const { x, y } = loadedSeries[seriesIndex].samples[index];
+      const start = y < 0 ? negative : positive;
+      const end = start + y;
+      const plotX = scaleX(x, index);
 
-      if (value < 0) negative = end;
+      if (y < 0) negative = end;
       else positive = end;
 
-      const y0 = insetPlotY(frame, scaleY(start, bounds, plotHeight, scale));
-      const y1 = insetPlotY(frame, scaleY(end, bounds, plotHeight, scale));
+      const plotY0 = scalePlotY(start);
+      const plotY1 = scalePlotY(end);
 
       plottedSeries[seriesIndex].points.push({
-        date,
-        value,
         x,
-        y: y1,
-        y0,
-        y1,
+        y,
+        plotX,
+        plotY: plotY1,
+        plotY0,
+        plotY1,
       });
     }
 
     for (const seriesIndex of lineIndexes) {
-      const { date, value } = loadedSeries[seriesIndex].entries[index];
-      const y = insetPlotY(frame, scaleY(value, bounds, plotHeight, scale));
+      const { x, y } = loadedSeries[seriesIndex].samples[index];
+      const plotY = scalePlotY(y);
 
       plottedSeries[seriesIndex].points.push({
-        date,
-        value,
         x,
         y,
-        y0: y,
-        y1: y,
+        plotX: scaleX(x, index),
+        plotY,
+        plotY0: plotY,
+        plotY1: plotY,
       });
     }
   }

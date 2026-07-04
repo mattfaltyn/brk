@@ -14,8 +14,8 @@ function createAreaPoints(frame, points) {
 
   return points.map((point) => ({
     ...point,
-    y0: bottom,
-    y1: point.y,
+    plotY0: bottom,
+    plotY1: point.plotY,
   }));
 }
 

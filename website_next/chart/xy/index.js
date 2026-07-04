@@ -14,7 +14,7 @@ import { createChartFrame, VIEWBOX_WIDTH } from "../viewbox.js";
  * @param {ChartFrameOptions} [args.gutter]
  * @param {XySeries[]} args.series
  * @param {(frame: ChartFrame) => XyPlottedSeries[]} args.plot
- * @param {false | ((series: XySeries, plotted: XyPlottedSeries, point: XyPoint) => string)} [args.marker]
+ * @param {false | ((series: XySeries, plotted: XyPlottedSeries, point: ChartPoint) => string)} [args.marker]
  */
 export function createXyChart({
   title,
@@ -114,26 +114,26 @@ export function createXyChart({
   }
 
   /**
-   * @param {{ index: number, point: XyPoint }} closest
+   * @param {{ index: number, point: ChartPoint }} closest
    * @param {ChartFrame} frame
    */
   function showMarker(closest, frame) {
     const plotted = currentSeries[closest.index];
     const item = series[closest.index];
 
-    guide.setAttribute("x1", closest.point.x.toFixed(2));
-    guide.setAttribute("x2", closest.point.x.toFixed(2));
+    guide.setAttribute("x1", closest.point.plotX.toFixed(2));
+    guide.setAttribute("x2", closest.point.plotX.toFixed(2));
     guide.setAttribute("y1", "0");
     guide.setAttribute("y2", frame.bottom.toString());
     const text =
       marker === false
         ? ""
         : (marker?.(item, plotted, closest.point) ??
-          unit.format(closest.point.value));
+          unit.format(closest.point.y));
 
     markerElement.textContent = text;
     markerElement.hidden = !text;
-    if (text) layoutChartMarker(markerElement, closest.point.x);
+    if (text) layoutChartMarker(markerElement, closest.point.plotX);
     svg.dataset.xyHover = "true";
     highlight.preview(closest.index);
   }
@@ -173,7 +173,7 @@ export function createXyChart({
  * @param {number} y
  */
 function findClosestPoint(series, plottedSeries, x, y) {
-  /** @type {{ index: number, point: XyPoint } | null} */
+  /** @type {{ index: number, point: ChartPoint } | null} */
   let closest = null;
   let closestDistance = Infinity;
 
@@ -181,7 +181,7 @@ function findClosestPoint(series, plottedSeries, x, y) {
     if (series[index].hidden) return;
 
     for (const point of item.points) {
-      const distance = Math.hypot(point.x - x, point.y - y);
+      const distance = Math.hypot(point.plotX - x, point.plotY - y);
 
       if (distance < closestDistance) {
         closest = { index, point };
@@ -202,7 +202,7 @@ function updateReadout(readout, unit, plottedSeries) {
   readout.rows.forEach((row, index) => {
     if (!row) return;
 
-    const value = plottedSeries[index]?.value;
+    const value = plottedSeries[index]?.readout;
 
     row.value.textContent =
       typeof value === "number" ? unit.format(value) : (value ?? "");
@@ -242,31 +242,10 @@ function appendPoints(group, highlight, series, plotted, index, radius) {
     circle.dataset.chart = "xy-point";
     circle.dataset.series = index.toString();
     circle.style.setProperty("--color", series.color());
-    circle.setAttribute("cx", point.x.toFixed(2));
-    circle.setAttribute("cy", point.y.toFixed(2));
+    circle.setAttribute("cx", point.plotX.toFixed(2));
+    circle.setAttribute("cy", point.plotY.toFixed(2));
     circle.setAttribute("r", radius.toString());
     highlight.addNode(circle, index);
     group.append(circle);
   }
 }
-
-/**
- * @typedef {Object} XyPoint
- * @property {number} x
- * @property {number} y
- * @property {number} value
- */
-
-/**
- * @typedef {Object} XyPlottedSeries
- * @property {XyPoint[]} points
- * @property {number | string} [value]
- */
-
-/**
- * @typedef {Object} XySeries
- * @property {string} label
- * @property {() => string} color
- * @property {"line" | "point"} kind
- * @property {boolean} [hidden]
- */

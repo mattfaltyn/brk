@@ -1,5 +1,7 @@
 import { createXyChart } from "../../chart/xy/index.js";
-import { getPlotHeight, insetPlotY } from "../../chart/viewbox.js";
+import { createChartPoint, createChartPoints } from "../../chart/points.js";
+import { createLinearXScale } from "../../chart/x.js";
+import { createValueYScale } from "../../chart/y.js";
 
 export const FEE_PERCENTILE_LABELS = /** @type {const} */ ([
   "min",
@@ -21,6 +23,7 @@ const FEE_PERCENTILE_COLORS = /** @type {const} */ ([
   "var(--red)",
 ]);
 
+const FEE_PERCENTILE_X = /** @type {const} */ ([0, 10, 25, 50, 75, 90, 100]);
 const VIEWBOX_HEIGHT = 180;
 const FEE_AVERAGE_COLOR = "var(--green)";
 
@@ -30,27 +33,66 @@ function scaleFeeRate(value) {
 }
 
 /**
- * @param {number[]} values
+ * @param {readonly number[]} values
+ * @returns {ChartSample[]}
+ */
+function createPercentileSamples(values) {
+  return values.map((y, index) => ({ x: FEE_PERCENTILE_X[index], y }));
+}
+
+/**
+ * @param {ChartSample[]} samples
+ * @param {number} averageRate
+ */
+function createAverageSample(samples, averageRate) {
+  const scaledValues = samples.map(({ y }) => scaleFeeRate(y));
+  const scaledAverage = scaleFeeRate(averageRate);
+
+  if (scaledAverage <= scaledValues[0]) {
+    return { x: samples[0].x, y: averageRate };
+  }
+
+  for (let index = 1; index < scaledValues.length; index += 1) {
+    if (scaledAverage > scaledValues[index]) continue;
+
+    const previousValue = scaledValues[index - 1];
+    const nextValue = scaledValues[index];
+    const previousSample = samples[index - 1];
+    const nextSample = samples[index];
+    const span = nextValue - previousValue;
+    const ratio = span ? (scaledAverage - previousValue) / span : 0;
+    const previousX = /** @type {number} */ (previousSample.x);
+    const nextX = /** @type {number} */ (nextSample.x);
+
+    return {
+      x: previousX + (nextX - previousX) * ratio,
+      y: averageRate,
+    };
+  }
+
+  return { x: samples[samples.length - 1].x, y: averageRate };
+}
+
+/**
+ * @param {ChartSample[]} percentileSamples
  * @param {number} averageRate
  * @returns {FeeEntry[]}
  */
-function createEntries(values, averageRate) {
+function createEntries(percentileSamples, averageRate) {
   return [
-    ...values.map((value, index) => ({
+    ...percentileSamples.map((sample, index) => ({
       label: FEE_PERCENTILE_LABELS[index],
-      value,
+      sample,
       color: FEE_PERCENTILE_COLORS[index],
-      pointIndex: index,
       priority: 0,
     })),
     {
       label: "avg",
-      value: averageRate,
+      sample: createAverageSample(percentileSamples, averageRate),
       color: FEE_AVERAGE_COLOR,
-      pointIndex: null,
       priority: 1,
     },
-  ].sort((a, b) => a.value - b.value || a.priority - b.priority);
+  ].sort((a, b) => a.sample.y - b.sample.y || a.priority - b.priority);
 }
 
 /**
@@ -74,80 +116,33 @@ function createSeries(entries) {
 }
 
 /**
- * @param {readonly number[]} values
- * @param {ChartFrame} frame
- * @returns {{ x: number, y: number, value: number }[]}
- */
-function createPoints(values, frame) {
-  const scaledValues = values.map(scaleFeeRate);
-  const min = Math.min(...scaledValues);
-  const max = Math.max(...scaledValues);
-  const span = max - min;
-  const plotHeight = getPlotHeight(frame);
-  const xScale = frame.width / (scaledValues.length - 1);
-
-  return scaledValues.map((value, index) => ({
-    x: xScale * index,
-    y: span
-      ? insetPlotY(frame, (1 - (value - min) / span) * plotHeight)
-      : insetPlotY(frame, plotHeight / 2),
-    value: values[index],
-  }));
-}
-
-/**
- * @param {number[]} values
- * @param {{ x: number, y: number, value: number }[]} points
- * @param {number} target
- */
-function interpolatePoint(values, points, target) {
-  const scaledValues = values.map(scaleFeeRate);
-  const scaledTarget = scaleFeeRate(target);
-
-  if (scaledTarget <= scaledValues[0]) {
-    return { ...points[0], value: target };
-  }
-
-  for (let index = 1; index < scaledValues.length; index += 1) {
-    if (scaledTarget > scaledValues[index]) continue;
-
-    const previousValue = scaledValues[index - 1];
-    const nextValue = scaledValues[index];
-    const previousPoint = points[index - 1];
-    const nextPoint = points[index];
-    const span = nextValue - previousValue;
-    const ratio = span ? (scaledTarget - previousValue) / span : 0;
-
-    return {
-      x: previousPoint.x + (nextPoint.x - previousPoint.x) * ratio,
-      y: previousPoint.y + (nextPoint.y - previousPoint.y) * ratio,
-      value: target,
-    };
-  }
-
-  return { ...points[points.length - 1], value: target };
-}
-
-/**
- * @param {number[]} values
+ * @param {ChartSample[]} percentileSamples
  * @param {FeeEntry[]} entries
  * @param {ChartFrame} frame
  * @returns {XyPlottedSeries[]}
  */
-function plotSeries(values, entries, frame) {
-  const points = createPoints(values, frame);
+function plotSeries(percentileSamples, entries, frame) {
+  const scaleX = createLinearXScale(
+    frame,
+    percentileSamples.map(({ x }) => /** @type {number} */ (x)),
+  );
+  const scalePlotY = createValueYScale(
+    frame,
+    entries.map(({ sample }) => sample.y),
+    scaleFeeRate,
+  );
+  const percentilePoints = createChartPoints(
+    percentileSamples,
+    scaleX,
+    scalePlotY,
+  );
 
   return [
-    { points },
+    { points: percentilePoints },
     ...entries.map((entry) => {
-      const point =
-        entry.pointIndex === null
-          ? interpolatePoint(values, points, entry.value)
-          : points[entry.pointIndex];
-
       return {
-        points: [point],
-        value: entry.value,
+        points: [createChartPoint(entry.sample, 0, scaleX, scalePlotY)],
+        readout: entry.sample.y,
       };
     }),
   ];
@@ -159,9 +154,10 @@ function plotSeries(values, entries, frame) {
  * @param {(value: number) => string} formatRate
  */
 export function createFeeChart(values, averageRate, formatRate) {
-  const entries = createEntries(values, averageRate);
+  const percentileSamples = createPercentileSamples(values);
+  const entries = createEntries(percentileSamples, averageRate);
   const figure = createXyChart({
-    title: "Percentiles",
+    title: "Fees",
     unit: {
       id: "sat/vB",
       name: "satoshis per virtual byte",
@@ -172,7 +168,7 @@ export function createFeeChart(values, averageRate, formatRate) {
     )} to ${formatRate(values[values.length - 1])} sat/vB`,
     fallbackHeight: VIEWBOX_HEIGHT,
     series: createSeries(entries),
-    plot: (frame) => plotSeries(values, entries, frame),
+    plot: (frame) => plotSeries(percentileSamples, entries, frame),
     marker: false,
   });
 
@@ -184,8 +180,7 @@ export function createFeeChart(values, averageRate, formatRate) {
 /**
  * @typedef {Object} FeeEntry
  * @property {string} label
- * @property {number} value
+ * @property {ChartSample} sample
  * @property {string} color
- * @property {number | null} pointIndex
  * @property {number} priority
  */

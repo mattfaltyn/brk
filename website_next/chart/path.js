@@ -12,23 +12,25 @@ function createPathCommand(command, x, y) {
   return `${command}${formatCoordinate(x)} ${formatCoordinate(y)}`;
 }
 
-/** @param {{ x: number, y: number }[]} points */
+/** @param {ChartPoint[]} points */
 export function createLinePathData(points) {
   return points
-    .map(({ x, y }, index) => createPathCommand(index ? "L" : "M", x, y))
+    .map(({ plotX, plotY }, index) =>
+      createPathCommand(index ? "L" : "M", plotX, plotY),
+    )
     .join(" ");
 }
 
 /** @param {StackedPoint[]} points */
 export function createAreaPathData(points) {
-  const commands = points.map(({ x, y1 }, index) =>
-    createPathCommand(index ? "L" : "M", x, y1),
+  const commands = points.map(({ plotX, plotY1 }, index) =>
+    createPathCommand(index ? "L" : "M", plotX, plotY1),
   );
 
   for (let index = points.length - 1; index >= 0; index -= 1) {
-    const { x, y0 } = points[index];
+    const { plotX, plotY0 } = points[index];
 
-    commands.push(createPathCommand("L", x, y0));
+    commands.push(createPathCommand("L", plotX, plotY0));
   }
 
   return `${commands.join(" ")} Z`;

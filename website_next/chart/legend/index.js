@@ -1,3 +1,9 @@
+import {
+  appendLegendListItem,
+  createLegendItem,
+  createLegendList,
+} from "../../legend/index.js";
+
 /**
  * @param {LegendChart} chart
  * @returns {{ legend: HTMLElement, menu: HTMLElement, items: (HTMLElement | null)[], readout: LegendReadout }}
@@ -8,22 +14,17 @@ export function createLegend(chart) {
   const title = document.createElement("h5");
   const separator = document.createElement("span");
   const unit = document.createElement("span");
-  const menu = document.createElement("menu");
+  const menu = createLegendList({ scroll: true });
   const rows = chart.series.map((series) => {
     if (series.hidden) return null;
 
-    const item = document.createElement("li");
-    const button = document.createElement("button");
-    const label = document.createElement("span");
-    const value = document.createElement("output");
+    const { button, value } = createLegendItem({
+      label: series.label,
+      color: series.color(),
+      ariaLabel: `Highlight ${series.label}`,
+    });
 
-    button.type = "button";
-    button.setAttribute("aria-label", `Highlight ${series.label}`);
-    button.style.setProperty("--color", series.color());
-    label.append(series.label);
-    button.append(label, value);
-    item.append(button);
-    menu.append(item);
+    appendLegendListItem(menu, button);
 
     return { button, value };
   });

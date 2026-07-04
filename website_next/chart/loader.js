@@ -3,20 +3,20 @@ import { fetchTimeframe } from "./timeframes.js";
 
 /**
  * @param {ChartResult} result
- * @returns {ChartEntry[]}
+ * @returns {ChartSample[]}
  */
-function createEntries(result) {
-  /** @type {ChartEntry[]} */
-  const entries = [];
+function createSamples(result) {
+  /** @type {ChartSample[]} */
+  const samples = [];
   /** @type {number | undefined} */
-  let lastValue;
+  let lastY;
 
-  for (const [date, value] of result.dateEntries()) {
-    if (typeof value === "number" && Number.isFinite(value)) lastValue = value;
-    if (lastValue !== undefined) entries.push({ date, value: lastValue });
+  for (const [x, y] of result.dateEntries()) {
+    if (typeof y === "number" && Number.isFinite(y)) lastY = y;
+    if (lastY !== undefined) samples.push({ x, y: lastY });
   }
 
-  return entries;
+  return samples;
 }
 
 /**
@@ -28,7 +28,7 @@ function loadSeries(chart, timeframe) {
     chart.series.map(async (item) => ({
       series: item,
       color: item.color(),
-      entries: createEntries(await fetchTimeframe(item.metric(brk), timeframe)),
+      samples: createSamples(await fetchTimeframe(item.metric(brk), timeframe)),
     })),
   );
 }

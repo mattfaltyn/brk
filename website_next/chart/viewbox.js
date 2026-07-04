@@ -34,19 +34,31 @@ export function createChartFrame(
 ) {
   const height = getViewBoxHeight(svg, fallbackHeight);
   const unit = getViewBoxUnit(svg, height);
+  const leftPadding = options.leftPadding ?? 0;
+  const rightPadding = options.rightPadding ?? 0;
   const topPadding =
     options.topPadding ?? CHART_MARKER.height + CHART_FRAME.topGap;
   const bottomPadding = options.bottomPadding ?? CHART_FRAME.bottomPadding;
+  const left = leftPadding * unit;
+  const right = Math.max(left + 1, VIEWBOX_WIDTH - rightPadding * unit);
   const top = topPadding * unit;
   const bottom = Math.max(top + 1, height - bottomPadding * unit);
 
   return {
     width: VIEWBOX_WIDTH,
     height,
+    left,
+    right,
     top,
     bottom,
+    plotWidth: right - left,
     plotHeight: bottom - top,
   };
+}
+
+/** @param {ChartFrame} frame */
+export function getPlotWidth(frame) {
+  return frame.plotWidth;
 }
 
 /** @param {ChartFrame} frame */
@@ -57,6 +69,14 @@ export function getPlotHeight(frame) {
 /** @param {ChartFrame} frame */
 export function getPlotBottom(frame) {
   return frame.bottom;
+}
+
+/**
+ * @param {ChartFrame} frame
+ * @param {number} x
+ */
+export function insetPlotX(frame, x) {
+  return frame.left + x;
 }
 
 /**

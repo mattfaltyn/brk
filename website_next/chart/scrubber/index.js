@@ -32,7 +32,7 @@ function getClosestPointIndex(series, points, x, y) {
 
   for (const [index, point] of points.entries()) {
     const distance =
-      series[index].hitTest?.(point, x, y) ?? Math.abs(point.y - y);
+      series[index].hitTest?.(point, x, y) ?? Math.abs(point.plotY - y);
 
     if (distance < closestDistance) {
       closestIndex = index;
@@ -51,7 +51,7 @@ function getClosestPointIndex(series, points, x, y) {
 function updateReadout(readout, points, format) {
   readout.rows.forEach((row, index) => {
     if (!row) return;
-    row.value.textContent = format(points[index].value);
+    row.value.textContent = format(points[index].y);
   });
 }
 
@@ -114,32 +114,34 @@ export function createScrubber(svg, readout, highlight, format) {
       currentStep = nextStep;
       currentPoints = getPointsAtStep(nextStep);
 
-      const stepX = currentPoints[0].x;
-      const xText = stepX.toFixed(2);
+      const plotX = currentPoints[0].plotX;
+      const xText = plotX.toFixed(2);
       const plotBottom = getPlotBottom(frame);
 
       svg.dataset.index = nextStep.toString();
       shade.setAttribute("x", xText);
       shade.setAttribute("y", "0");
-      shade.setAttribute("width", (VIEWBOX_WIDTH - stepX).toFixed(2));
+      shade.setAttribute("width", (frame.right - plotX).toFixed(2));
       shade.setAttribute("height", plotBottom.toString());
       guide.setAttribute("x1", xText);
       guide.setAttribute("x2", xText);
       guide.setAttribute("y1", "0");
       guide.setAttribute("y2", plotBottom.toString());
-      dateMarker.textContent = dateFormat.format(currentPoints[0].date);
+      dateMarker.textContent = dateFormat.format(
+        /** @type {Date} */ (currentPoints[0].x),
+      );
       dateMarker.setAttribute(
         "aria-label",
         `Date ${dateMarker.textContent}`,
       );
-      layoutChartMarker(dateMarker, stepX);
+      layoutChartMarker(dateMarker, plotX);
       updateReadout(readout, currentPoints, format);
 
       markers.forEach((marker, index) => {
         const point = currentPoints[index];
 
-        marker.setAttribute("cx", point.x.toFixed(2));
-        marker.setAttribute("cy", point.y.toFixed(2));
+        marker.setAttribute("cx", point.plotX.toFixed(2));
+        marker.setAttribute("cy", point.plotY.toFixed(2));
       });
     }
 
@@ -213,11 +215,12 @@ export function createScrubber(svg, readout, highlight, format) {
 
     pointerFrame = requestAnimationFrame(() => {
       pointerFrame = 0;
+      if (!frame) return;
 
       const x = ((pointerX - rect.left) / rect.width) * VIEWBOX_WIDTH;
-      const y = ((pointerY - rect.top) / rect.height) * (frame?.height ?? 0);
+      const y = ((pointerY - rect.top) / rect.height) * frame.height;
 
-      update(x / VIEWBOX_WIDTH, x, y);
+      update((x - frame.left) / frame.plotWidth, x, y);
     });
   }
 

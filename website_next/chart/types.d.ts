@@ -5,15 +5,16 @@ import { timeframes, timeframeOptions } from "./timeframes.js";
 import { views } from "./views.js";
 
 declare global {
-  type ChartEntry = {
-    date: Date;
-    value: number;
+  type ChartX = Date | number;
+  type ChartSample = {
+    x: ChartX;
+    y: number;
   };
   type ChartMetric = (client: typeof brk) => TimeframeMetric;
   type ChartOrder = (typeof orders)[number]["value"];
-  type ChartPoint = ChartEntry & {
-    x: number;
-    y: number;
+  type ChartPoint = ChartSample & {
+    plotX: number;
+    plotY: number;
   };
   type ChartResult = {
     dateEntries(): Iterable<[Date, number | null | undefined]>;
@@ -41,11 +42,16 @@ declare global {
   type ChartFrame = {
     width: number;
     height: number;
+    left: number;
+    right: number;
     top: number;
     bottom: number;
+    plotWidth: number;
     plotHeight: number;
   };
   type ChartFrameOptions = {
+    leftPadding?: number;
+    rightPadding?: number;
     topPadding?: number;
     bottomPadding?: number;
   };
@@ -56,7 +62,7 @@ declare global {
   type LoadedSeries = {
     series: ChartSeries;
     color: string;
-    entries: ChartEntry[];
+    samples: ChartSample[];
   };
   type PlotContext = {
     group: SVGGElement;
@@ -91,21 +97,16 @@ declare global {
     preview(index: number): void;
   };
   type StackedPoint = ChartPoint & {
-    y0: number;
-    y1: number;
+    plotY0: number;
+    plotY1: number;
   };
   type StackedPlottedSeries = Omit<PlottedSeries, "points" | "hitTest"> & {
     points: StackedPoint[];
     hitTest?: PlottedSeries["hitTest"];
   };
-  type XyPoint = {
-    x: number;
-    y: number;
-    value: number;
-  };
   type XyPlottedSeries = {
-    points: XyPoint[];
-    value?: number | string;
+    points: ChartPoint[];
+    readout?: number | string;
   };
   type XySeries = {
     label: string;

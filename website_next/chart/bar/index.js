@@ -1,25 +1,27 @@
 import { createLinePathData, formatCoordinate } from "../path.js";
-import { VIEWBOX_WIDTH } from "../viewbox.js";
 import { createStackedSeries } from "../stacked/series.js";
 import { clamp } from "../math.js";
 import { appendSeriesPath } from "../series-path.js";
 
 /** @param {StackedPoint[]} points */
 function getBarWidth(points) {
-  return points.length > 1 ? (VIEWBOX_WIDTH / (points.length - 1)) * 0.8 : 1;
+  return points.length > 1
+    ? Math.abs(points[1].plotX - points[0].plotX) * 0.8
+    : 1;
 }
 
 /**
+ * @param {ChartFrame} frame
  * @param {StackedPoint[]} points
  * @param {number} width
  */
-function createBarPathData(points, width) {
+function createBarPathData(frame, points, width) {
   return points
-    .map(({ x, y0, y1 }) => {
-      const left = clamp(x - width / 2, 0, VIEWBOX_WIDTH - width);
+    .map(({ plotX, plotY0, plotY1 }) => {
+      const left = clamp(plotX - width / 2, frame.left, frame.right - width);
       const right = left + width;
-      const top = Math.min(y0, y1);
-      const bottom = Math.max(y0, y1);
+      const top = Math.min(plotY0, plotY1);
+      const bottom = Math.max(plotY0, plotY1);
 
       return (
         `M${formatCoordinate(left)} ${formatCoordinate(top)}` +
@@ -56,7 +58,7 @@ export function renderBarPlot({
       index,
       chart: "bar",
       color,
-      d: createBarPathData(points, getBarWidth(points)),
+      d: createBarPathData(frame, points, getBarWidth(points)),
     });
   }
 

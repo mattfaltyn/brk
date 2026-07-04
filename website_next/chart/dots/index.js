@@ -9,8 +9,8 @@ const radius = 1;
 function createDotsPathData(points) {
   return points
     .map(
-      ({ x, y }) =>
-        `M${formatCoordinate(x - radius)} ${formatCoordinate(y)}` +
+      ({ plotX, plotY }) =>
+        `M${formatCoordinate(plotX - radius)} ${formatCoordinate(plotY)}` +
         `a${radius} ${radius} 0 1 0 ${radius * 2} 0` +
         `a${radius} ${radius} 0 1 0 ${radius * -2} 0`,
     )

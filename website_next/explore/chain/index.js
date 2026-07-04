@@ -1,3 +1,4 @@
+import { createPoolLogo, getPoolDisplayName } from "../../pools/index.js";
 import { brk } from "../../utils/client.js";
 import { isPlainLeftClick } from "../../utils/event.js";
 import { createCubeButton, createCubeDiv } from "./cube/index.js";
@@ -70,11 +71,6 @@ function span(text, className) {
   element.textContent = text;
 
   return element;
-}
-
-/** @param {string} name */
-function poolSlug(name) {
-  return name.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
 /** @param {number} unixSeconds */
@@ -682,16 +678,10 @@ export function createChain({ onSelect = () => {} } = {}) {
     height.append(createHeightElement(block.height));
 
     const poolElement = document.createElement("div");
-    const logo = document.createElement("img");
+    const logo = createPoolLogo(pool);
     const name = document.createElement("span");
     poolElement.classList.add("pool");
-    logo.src = `/assets/pools/${poolSlug(pool.name)}.svg`;
-    logo.alt = "";
-    logo.onerror = () => {
-      logo.onerror = null;
-      logo.src = "/assets/pools/default.svg";
-    };
-    name.textContent = pool.name.replace(/\s+(Pool|USA)$/i, "").trim();
+    name.textContent = getPoolDisplayName(pool.name);
     poolElement.append(logo, name);
     cube.rightFace.append(height, poolElement);
 
