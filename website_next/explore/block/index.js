@@ -12,6 +12,8 @@ import { createFeeChart } from "./fee-chart.js";
 /** @typedef {Awaited<ReturnType<typeof brk.getBlocksV1>>[number]} Block */
 
 const MAX_BLOCK_WEIGHT = 4_000_000;
+const DIFFICULTY_EPOCH_BLOCKS = 2_016;
+const HALVING_EPOCH_BLOCKS = 210_000;
 
 /** @param {number} bytes */
 function formatBytes(bytes) {
@@ -100,52 +102,9 @@ function createRow(term, value) {
   return row;
 }
 
-/**
- * @param {string} label
- * @param {string | Node} value
- */
-function createStat(label, value) {
-  const stat = document.createElement("div");
-  const name = document.createElement("span");
-  const amount = document.createElement("strong");
-
-  stat.dataset.stat = "";
-  name.textContent = label;
-  amount.append(value);
-  stat.append(name, amount);
-
-  return stat;
-}
-
-/** @param {[string, string | Node][]} items */
-function createStats(items) {
-  const stats = document.createElement("div");
-
-  stats.dataset.stats = "";
-  stats.append(...items.map(([label, value]) => createStat(label, value)));
-
-  return stats;
-}
-
 /** @param {string} title */
 function groupName(title) {
   return title.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-}
-
-/**
- * @param {string} title
- * @param {[string, string | Node][]} stats
- * @param {Node[]} [children]
- */
-function createStatBox(title, stats, children = []) {
-  const box = document.createElement("div");
-  const heading = document.createElement("h3");
-
-  box.dataset.statBox = groupName(title);
-  heading.textContent = title;
-  box.append(heading, createStats(stats), ...children);
-
-  return box;
 }
 
 /**
@@ -168,11 +127,12 @@ function createInlineRow(label, values) {
 /**
  * @param {string} label
  * @param {string | Node} value
+ * @param {string} [type]
  */
-function createInlineBox(label, value) {
+function createInlineBox(label, value, type = "inline") {
   const box = document.createElement("div");
 
-  box.dataset.blockBox = "inline";
+  box.dataset.blockBox = type;
   box.append(createInlineRow(label, [value]));
 
   return box;
@@ -183,26 +143,77 @@ function formatBlockFill(block) {
   return `${((block.weight / MAX_BLOCK_WEIGHT) * 100).toFixed(1)}%`;
 }
 
-/** @param {number | string} bits */
-function formatBits(bits) {
-  return typeof bits === "number" ? `0x${bits.toString(16)}` : bits;
-}
-
 /**
  * @param {string} label
  * @param {string} value
  */
-function createMinerStat(label, value) {
+function createMetricStat(label, value) {
   const stat = document.createElement("div");
   const name = document.createElement("span");
   const amount = document.createElement("strong");
 
-  stat.dataset.minerStat = "";
+  stat.dataset.metricStat = "";
   name.textContent = label;
   amount.textContent = value;
   stat.append(name, amount);
 
   return stat;
+}
+
+/** @param {string} raw */
+function getCoinbaseMessage(raw) {
+  return (raw.match(/[\x20-\x7e]{2,}/g) ?? [])
+    .map((value) => value.trim())
+    .filter((value) => /[A-Za-z0-9]/.test(value))
+    .join(" · ");
+}
+
+/** @param {string} raw */
+function createCoinbaseMessage(raw) {
+  const message = getCoinbaseMessage(raw);
+
+  if (!message) return null;
+
+  const element = document.createElement("p");
+
+  element.dataset.coinbaseMessage = "";
+  element.textContent = message;
+
+  return element;
+}
+
+/**
+ * @param {string} label
+ * @param {number} height
+ * @param {number} length
+ * @param {string} color
+ */
+function createEpochProgress(label, height, length, color) {
+  const progress = (height % length) + 1;
+  const row = document.createElement("div");
+  const head = document.createElement("div");
+  const name = document.createElement("span");
+  const value = document.createElement("strong");
+  const bar = document.createElement("div");
+  const done = document.createElement("span");
+  const remaining = document.createElement("span");
+
+  row.dataset.epoch = "";
+  head.dataset.epochHead = "";
+  bar.dataset.epochBar = "";
+  done.dataset.epochSegment = "done";
+  remaining.dataset.epochSegment = "remaining";
+  row.style.setProperty("--epoch-color", color);
+  done.style.setProperty("--share", `${(progress / length) * 100}%`);
+  remaining.style.setProperty("--share", `${((length - progress) / length) * 100}%`);
+
+  name.textContent = label;
+  value.textContent = `${((progress / length) * 100).toFixed(1)}%`;
+  head.append(name, value);
+  bar.append(done, remaining);
+  row.append(head, bar);
+
+  return row;
 }
 
 /** @param {Block} block */
@@ -211,28 +222,52 @@ function createMinerSummary(block) {
   const pane = document.createElement("div");
   const head = document.createElement("div");
   const identity = document.createElement("div");
+  const title = document.createElement("div");
   const name = document.createElement("strong");
+  const blockNumber = document.createElement("span");
   const slug = document.createElement("span");
-  const stats = document.createElement("div");
   const logo = createPoolLogo(pool);
+  const coinbaseMessage = createCoinbaseMessage(block.extras.coinbaseSignatureAscii);
 
   pane.dataset.minerPane = "";
   head.dataset.minerHead = "";
   identity.dataset.minerIdentity = "";
+  title.dataset.minerTitle = "";
   slug.dataset.minerSlug = "";
-  stats.dataset.minerStats = "";
   logo.dataset.minerLogo = "";
 
   name.textContent = pool.name;
-  slug.textContent = `#${pool.slug}`;
-  identity.append(name, slug);
+  // TODO: remove fallback after the server includes pool.blockNumber everywhere.
+  blockNumber.textContent = `#${(pool.blockNumber || 0).toLocaleString()}`;
+  slug.textContent = pool.slug;
+  title.append(name, blockNumber);
+  identity.append(title, slug);
   head.append(identity, logo);
-  stats.append(
-    createMinerStat("Difficulty", block.difficulty.toLocaleString()),
-    createMinerStat("Bits", formatBits(block.bits)),
-    createMinerStat("Nonce", block.nonce.toLocaleString()),
+  pane.append(head, ...(coinbaseMessage ? [coinbaseMessage] : []));
+
+  return pane;
+}
+
+/** @param {Block} block */
+function createDifficultySummary(block) {
+  const pane = document.createElement("div");
+
+  pane.dataset.metricList = "";
+  pane.append(
+    createMetricStat("Difficulty", block.difficulty.toLocaleString()),
+    createEpochProgress(
+      "Difficulty epoch",
+      block.height,
+      DIFFICULTY_EPOCH_BLOCKS,
+      "var(--orange)",
+    ),
+    createEpochProgress(
+      "Halving epoch",
+      block.height,
+      HALVING_EPOCH_BLOCKS,
+      "var(--red)",
+    ),
   );
-  pane.append(head, stats);
 
   return pane;
 }
@@ -320,16 +355,19 @@ function createRewardPart(type, label, sats, total, price) {
 }
 
 /**
+ * @param {string} label
  * @param {number} sats
  * @param {number} price
  */
-function createRewardTotal(sats, price) {
+function createRewardTotal(label, sats, price) {
   const total = document.createElement("div");
+  const name = document.createElement("span");
   const amount = createBtcAmount("strong", sats);
   const usd = createSatsUsdAmount(sats, price);
 
   total.dataset.rewardTotal = "";
-  total.append(amount, usd);
+  name.textContent = label;
+  total.append(name, amount, usd);
 
   return total;
 }
@@ -365,18 +403,11 @@ function setRewardPreview(rewards, activeKey) {
 /** @param {Block["extras"]} extras */
 function createRewardSummary(extras) {
   const subsidy = extras.reward - extras.totalFees;
+  const rewards = document.createElement("div");
   const bar = document.createElement("div");
   const split = createLegendList({ fill: true });
-  const rewards = createStatBox(
-    "Rewards",
-    [],
-    [
-      createRewardTotal(extras.reward, extras.price),
-      bar,
-      split,
-    ],
-  );
 
+  rewards.dataset.statBox = "rewards";
   appendLegendListItem(
     split,
     createRewardPart("subsidy", "Subsidy", subsidy, extras.reward, extras.price),
@@ -390,6 +421,7 @@ function createRewardSummary(extras) {
     createRewardSegment("subsidy", subsidy, extras.reward),
     createRewardSegment("fees", extras.totalFees, extras.reward),
   );
+  rewards.append(createRewardTotal("Rewards", extras.reward, extras.price), bar, split);
 
   rewards.addEventListener("pointerenter", (event) => {
     setRewardPreview(rewards, getRewardKey(event.target));
@@ -415,8 +447,8 @@ function createTransactionSummary(block) {
   transactions.dataset.blockBox = "tx";
   io.dataset.blockIo = "";
   io.append(
-    createInlineBox("Input", extras.totalInputs.toLocaleString()),
-    createInlineBox("Output", extras.totalOutputs.toLocaleString()),
+    createInlineBox("Input", extras.totalInputs.toLocaleString(), "input"),
+    createInlineBox("Output", extras.totalOutputs.toLocaleString(), "output"),
   );
   transactions.append(
     createInlineRow("Tx", [block.txCount.toLocaleString()]),
@@ -466,9 +498,10 @@ export function createBlockDetails() {
   const header = document.createElement("header");
   const titleRow = document.createElement("div");
   const title = document.createElement("h1");
-  const summary = document.createElement("p");
+  const date = document.createElement("time");
+  const meta = document.createElement("div");
+  const hash = document.createElement("p");
   const price = createUsdAmount("output", 0, {
-    size: "title",
     tone: "positive",
   });
   const content = document.createElement("div");
@@ -476,8 +509,12 @@ export function createBlockDetails() {
   element.id = "block-details";
   element.hidden = true;
   titleRow.dataset.blockTitle = "";
-  titleRow.append(title, price);
-  header.append(titleRow, summary);
+  date.dataset.blockDate = "";
+  meta.dataset.blockMeta = "";
+  hash.dataset.blockHashLine = "";
+  titleRow.append(title, date);
+  meta.append(hash, price);
+  header.append(titleRow, meta);
   element.append(header, content);
 
   /** @param {Block} block */
@@ -486,13 +523,10 @@ export function createBlockDetails() {
 
     element.hidden = false;
     title.replaceChildren(...createTitle(block.height));
-    summary.replaceChildren(
-      createHashElement(block.id),
-      document.createElement("br"),
-      formatDateTime(block.timestamp),
-    );
+    date.dateTime = new Date(block.timestamp * 1_000).toISOString();
+    date.textContent = formatDateTime(block.timestamp);
+    hash.replaceChildren(createHashElement(block.id));
     renderUsdAmount(price, extras.price, {
-      size: "title",
       tone: "positive",
     });
 
@@ -503,13 +537,15 @@ export function createBlockDetails() {
 
     appendGroup(content, "Mining", [], [createMinerSummary(block)], false);
 
+    appendGroup(content, "Difficulty", [], [createDifficultySummary(block)], false);
+
     appendGroup(content, "Rewards", [], [createRewardSummary(extras)], false);
 
     appendGroup(content, "Block", [], [createTransactionSummary(block)], false);
 
     appendGroup(content, "Fees", [], [
       createFeeChart(extras.feeRange, extras.avgFeeRate, formatFeeRate),
-    ]);
+    ], false);
   }
 
   return /** @type {const} */ ({

@@ -259,6 +259,7 @@ Matches mempool.space/bitcoin-cli behavior.
  * @property {number} id - Unique pool identifier
  * @property {string} name - Pool name
  * @property {PoolSlug} slug - URL-friendly pool identifier
+ * @property {number} blockNumber - This block's ordinal among blocks attributed to this pool
  * @property {?string[]=} minerNames - Miner name tags found in coinbase scriptsig
  */
 /**
