@@ -18,17 +18,17 @@
   opacity: 1;
   transition: opacity 200ms ease;
 
-  &.loading,
-  &.jumping {
+  &[data-loading],
+  &[data-jumping] {
     opacity: 0;
     pointer-events: none;
   }
 
-  .dim {
+  [data-dim] {
     opacity: 0.5;
   }
 
-  .scroll {
+  [data-chain-scroll] {
     height: 100%;
     padding: 0;
     overflow-y: auto;
@@ -36,13 +36,13 @@
     scrollbar-width: none;
   }
 
-  .blocks {
+  [data-chain-blocks] {
     display: flex;
     flex-direction: column-reverse;
     min-height: 100%;
   }
 
-  .cube {
+  [data-cube] {
     --cube-fall-off: pow(
       clamp(
         0,
@@ -61,12 +61,12 @@
       margin-bottom: var(--block-gap);
     }
 
-    .face-text .height {
+    .face-text [data-cube-height] {
       font-size: var(--font-size-sm);
       font-weight: normal;
     }
 
-    .face-text .fees {
+    .face-text [data-cube-fees] {
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -74,7 +74,7 @@
       height: 100%;
     }
 
-    .face-text .pool {
+    .face-text [data-cube-pool] {
       display: flex;
       align-items: center;
       justify-content: center;
@@ -97,7 +97,7 @@
     }
   }
 
-  .edge {
+  [data-edge] {
     position: absolute;
     top: calc(var(--main-padding) + 2.5rem);
     left: calc(var(--cube-size) * var(--iso-scale));
@@ -134,7 +134,7 @@
     height: 14rem;
     min-height: 14rem;
 
-    .scroll {
+    [data-chain-scroll] {
       display: grid;
       align-items: center;
       grid-column: 1;
@@ -146,21 +146,21 @@
       touch-action: pan-x;
     }
 
-    .blocks {
+    [data-chain-blocks] {
       flex-direction: row-reverse;
       align-items: center;
       width: max-content;
       min-height: 0;
     }
 
-    .cube {
+    [data-cube] {
       & + & {
         margin-right: var(--block-gap);
         margin-bottom: 0;
       }
     }
 
-    .edge {
+    [data-edge] {
       top: 50%;
       left: 0.75rem;
       translate: 0 -50%;

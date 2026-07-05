@@ -4,11 +4,11 @@
   --cube-empty-alpha: 0.4;
   --face-step: 0.033;
 
-  &:not(.loading) .cube[data-enter] {
+  &:not([data-loading]) [data-cube][data-enter] {
     animation: confirmed-cube-enter 180ms ease-out both;
   }
 
-  .cube {
+  [data-cube] {
     --cube-width: calc(var(--cube-size) * 2 * var(--iso-scale));
     --cube-height: calc(var(--cube-size) * 2);
 
@@ -69,26 +69,26 @@
     }
 
     &:is(button):active,
-    &.selected {
+    &[data-selected] {
       color: var(--black);
       --face-color-base: var(--orange);
     }
 
-    &[data-press]:not(.selected) {
+    &[data-press]:not([data-selected]) {
       color: var(--background-color);
       --face-color-base: var(--inv-border-color);
     }
 
     &:is(button):active,
-    &.selected,
-    &[data-press]:not(.selected) {
+    &[data-selected],
+    &[data-press]:not([data-selected]) {
       --face-top: var(--state-face-top);
       --face-right: var(--state-face-right);
       --face-left: var(--state-face-left);
       --face-bottom: var(--state-face-bottom);
     }
 
-    &.projected {
+    &[data-projected] {
       animation: projected-cube-pulse 4s ease-in-out infinite;
     }
 
@@ -96,7 +96,7 @@
       visibility: hidden;
     }
 
-    &.skeleton .face-text {
+    &[data-skeleton] .face-text {
       visibility: hidden;
     }
 

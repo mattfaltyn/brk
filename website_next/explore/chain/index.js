@@ -1,7 +1,24 @@
-import { createPoolLogo, getPoolDisplayName } from "../../pools/index.js";
 import { brk } from "../../utils/client.js";
-import { isPlainLeftClick } from "../../utils/event.js";
-import { createCubeButton, createCubeDiv } from "./cube/index.js";
+import {
+  createEnteringConfirmedCube,
+  createPlaceholderCube,
+  createProjectedCube,
+  setConfirmedInterval,
+  updateProjectedCube,
+  updateProjectedTime,
+} from "./block-cube.js";
+import { createEdgeButton } from "./edge.js";
+import {
+  distanceFromViewport,
+  findVisibleConfirmedHeight,
+  isHorizontalLayout,
+  olderRemaining,
+  olderRunway,
+  olderWheelDelta,
+  preserveScrollPosition,
+  scrollToElement,
+} from "./scroll.js";
+import { transitionMs } from "./transition.js";
 
 const BLOCK_BATCH_SIZE = 15;
 const EDGE_LOAD_DISTANCE = 50;
@@ -10,106 +27,10 @@ const POLL_INTERVAL = 1_000;
 const PROJECTED_LIMIT = 8;
 const TARGET_BLOCK_SECONDS = 600;
 const TIP_BLOCK_THRESHOLD = 10;
-const MONTHS = /** @type {const} */ ([
-  "Jan",
-  "Feb",
-  "Mar",
-  "Apr",
-  "May",
-  "Jun",
-  "Jul",
-  "Aug",
-  "Sep",
-  "Oct",
-  "Nov",
-  "Dec",
-]);
 
 /** @typedef {Awaited<ReturnType<typeof brk.getBlocksV1>>[number]} Block */
 /** @typedef {Awaited<ReturnType<typeof brk.getMempoolBlocks>>[number]} MempoolBlock */
 /** @typedef {{ generation: number, startHeight: number, placeholders: HTMLElement[] }} OlderBatch */
-
-/** @param {number} rate */
-function formatFeeRate(rate) {
-  if (rate >= 1_000_000) return `${(rate / 1_000_000).toFixed(1)}M`;
-  if (rate >= 100_000) return `${Math.round(rate / 1_000)}k`;
-  if (rate >= 1_000) return `${(rate / 1_000).toFixed(1)}k`;
-  if (rate >= 100) return Math.round(rate).toLocaleString();
-  if (rate >= 10) return rate.toFixed(1);
-  return rate.toFixed(2);
-}
-
-/** @param {number} height */
-function createHeightElement(height) {
-  const container = document.createElement("span");
-  const prefix = document.createElement("span");
-  const value = document.createElement("span");
-
-  prefix.classList.add("dim");
-  prefix.textContent = `#${"0".repeat(Math.max(0, 7 - String(height).length))}`;
-  value.textContent = String(height);
-  container.append(prefix, value);
-
-  return container;
-}
-
-/** @param {HTMLElement} element @param {() => void} handler */
-function onPlainClick(element, handler) {
-  element.addEventListener("click", (event) => {
-    if (!(event instanceof MouseEvent) || !isPlainLeftClick(event)) return;
-
-    event.preventDefault();
-    handler();
-  });
-}
-
-/** @param {string} text @param {string} [className] */
-function span(text, className) {
-  const element = document.createElement("span");
-
-  if (className) element.classList.add(className);
-  element.textContent = text;
-
-  return element;
-}
-
-/** @param {number} unixSeconds */
-function formatShortDate(unixSeconds) {
-  const date = new Date(unixSeconds * 1_000);
-
-  return `${MONTHS[date.getMonth()]} ${date.getDate()}`;
-}
-
-/** @param {number} unixSeconds */
-function formatHHMM(unixSeconds) {
-  const date = new Date(unixSeconds * 1_000);
-
-  return [
-    String(date.getHours()).padStart(2, "0"),
-    String(date.getMinutes()).padStart(2, "0"),
-  ];
-}
-
-/**
- * @param {"tip"} className
- * @param {string} label
- * @param {string} mobileLabel
- * @param {string} title
- * @param {() => void} handler
- */
-function createEdgeButton(className, label, mobileLabel, title, handler) {
-  const button = document.createElement("button");
-
-  button.classList.add("edge", className);
-  button.type = "button";
-  button.title = title;
-  button.ariaLabel = title;
-  button.dataset.mobileLabel = mobileLabel;
-  button.textContent = label;
-  onPlainClick(button, handler);
-
-  return button;
-}
 
 /**
  * @param {{ onSelect?: (block: Block) => void }} [options]
@@ -124,8 +45,8 @@ export function createChain({ onSelect = () => {} } = {}) {
 
   element.id = "chain";
   setTipVisible(false);
-  scrollElement.classList.add("scroll");
-  blocksElement.classList.add("blocks");
+  scrollElement.dataset.chainScroll = "";
+  blocksElement.dataset.chainBlocks = "";
   scrollElement.append(blocksElement);
   element.append(tipButton, scrollElement);
 
@@ -192,7 +113,7 @@ export function createChain({ onSelect = () => {} } = {}) {
   }
 
   function deselectCube() {
-    if (selectedCube) selectedCube.classList.remove("selected");
+    if (selectedCube) delete selectedCube.dataset.selected;
     selectedCube = null;
   }
 
@@ -207,7 +128,7 @@ export function createChain({ onSelect = () => {} } = {}) {
 
     jumping = true;
 
-    element.classList.add("jumping");
+    element.dataset.jumping = "";
     element.addEventListener("transitionend", finishJumpToTip);
     jumpTimeout = window.setTimeout(
       finishJumpToTip,
@@ -236,41 +157,8 @@ export function createChain({ onSelect = () => {} } = {}) {
     }
 
     element.removeEventListener("transitionend", finishJumpToTip);
-    element.classList.remove("jumping");
+    delete element.dataset.jumping;
     jumping = false;
-  }
-
-  /**
-   * @param {Element} element
-   * @param {string} property
-   */
-  function transitionMs(element, property) {
-    const style = getComputedStyle(element);
-    const properties = style.transitionProperty.split(",").map((part) => {
-      return part.trim();
-    });
-    const durations = parseCssTimes(style.transitionDuration);
-    const delays = parseCssTimes(style.transitionDelay);
-    const index = properties.findIndex((part) => {
-      return part === property || part === "all";
-    });
-
-    if (index < 0) return 0;
-
-    const duration = durations[index] ?? durations.at(-1) ?? 0;
-    const delay = delays[index] ?? delays.at(-1) ?? 0;
-
-    return duration + delay;
-  }
-
-  /** @param {string} value */
-  function parseCssTimes(value) {
-    return value.split(",").map((part) => {
-      const time = part.trim();
-      const amount = Number.parseFloat(time);
-
-      return time.endsWith("ms") ? amount : amount * 1_000;
-    });
   }
 
   /**
@@ -281,7 +169,7 @@ export function createChain({ onSelect = () => {} } = {}) {
     if (cube !== selectedCube) {
       deselectCube();
       selectedCube = cube;
-      cube.classList.add("selected");
+      cube.dataset.selected = "";
     }
 
     const hash = cube.dataset.hash;
@@ -294,52 +182,8 @@ export function createChain({ onSelect = () => {} } = {}) {
     }
   }
 
-  /**
-   * @param {Element} target
-   * @param {"smooth" | "instant"} behavior
-   */
-  function scrollToElement(target, behavior) {
-    target.scrollIntoView({
-      behavior,
-      block: "center",
-      inline: "center",
-    });
-  }
-
-  /**
-   * @param {Element | null | undefined} anchor
-   * @param {DOMRect | undefined} anchorRect
-   */
-  function preserveScrollPosition(anchor, anchorRect) {
-    if (!anchor || !anchorRect) return;
-
-    const rect = anchor.getBoundingClientRect();
-
-    scrollElement.scrollTop += rect.top - anchorRect.top;
-    scrollElement.scrollLeft += rect.left - anchorRect.left;
-  }
-
   function isHorizontal() {
-    return getComputedStyle(blocksElement).flexDirection.startsWith("row");
-  }
-
-  /** @param {boolean} horizontal */
-  function olderRemaining(horizontal) {
-    return horizontal
-      ? scrollElement.scrollWidth -
-          scrollElement.clientWidth -
-          scrollElement.scrollLeft
-      : scrollElement.scrollHeight -
-          scrollElement.clientHeight -
-          scrollElement.scrollTop;
-  }
-
-  /** @param {boolean} horizontal */
-  function olderRunway(horizontal) {
-    return (
-      (horizontal ? scrollElement.clientWidth : scrollElement.clientHeight) *
-      OLDER_RESERVE_VIEWPORTS
-    );
+    return isHorizontalLayout(blocksElement);
   }
 
   /** @param {number} [delta] */
@@ -347,12 +191,13 @@ export function createChain({ onSelect = () => {} } = {}) {
     if (!active || oldestReservedHeight <= 0) return;
 
     const horizontal = isHorizontal();
-    const runway = olderRunway(horizontal) + delta;
-    let remaining = olderRemaining(horizontal);
+    const runway =
+      olderRunway(scrollElement, horizontal, OLDER_RESERVE_VIEWPORTS) + delta;
+    let remaining = olderRemaining(scrollElement, horizontal);
 
     while (remaining < runway) {
       if (!reserveOlderBatch()) return;
-      remaining = olderRemaining(horizontal);
+      remaining = olderRemaining(scrollElement, horizontal);
     }
   }
 
@@ -383,10 +228,8 @@ export function createChain({ onSelect = () => {} } = {}) {
     const placeholders = /** @type {HTMLElement[]} */ ([]);
 
     for (let i = 0; i < count; i++) {
-      const cube = document.createElement("div");
+      const cube = createPlaceholderCube();
 
-      cube.classList.add("cube");
-      cube.dataset.placeholder = "";
       placeholders.push(cube);
       fragment.append(cube);
     }
@@ -413,6 +256,13 @@ export function createChain({ onSelect = () => {} } = {}) {
     return true;
   }
 
+  /** @param {Block} block */
+  function createKnownEnteringConfirmedCube(block) {
+    blocksByHash.set(block.id, block);
+
+    return createEnteringConfirmedCube(block, selectCube);
+  }
+
   /** @param {Block[]} blocks */
   function appendNewerBlocks(blocks) {
     if (!blocks.length) return false;
@@ -424,7 +274,7 @@ export function createChain({ onSelect = () => {} } = {}) {
       const block = blocks[i];
 
       if (block.height > newestHeight) {
-        appendConfirmed(createEnteringConfirmedCube(block));
+        appendConfirmed(createKnownEnteringConfirmedCube(block));
       } else {
         blocksByHash.set(block.id, block);
       }
@@ -435,7 +285,7 @@ export function createChain({ onSelect = () => {} } = {}) {
     updateTipCube();
     refreshProjected();
 
-    preserveScrollPosition(anchor, anchorRect);
+    preserveScrollPosition(scrollElement, anchor, anchorRect);
 
     syncTipVisibility();
 
@@ -452,7 +302,7 @@ export function createChain({ onSelect = () => {} } = {}) {
     clear();
 
     for (const block of blocks) {
-      prependConfirmed(createEnteringConfirmedCube(block));
+      prependConfirmed(createKnownEnteringConfirmedCube(block));
     }
 
     newestHeight = blocks[0].height;
@@ -504,10 +354,12 @@ export function createChain({ onSelect = () => {} } = {}) {
     }
 
     for (const cube of blocksElement.children) {
-      if (!cube.classList.contains("projected")) cube.classList.add("skeleton");
+      if (!cube.hasAttribute("data-projected")) {
+        cube.setAttribute("data-skeleton", "");
+      }
     }
 
-    element.classList.add("loading");
+    element.dataset.loading = "";
 
     try {
       const height = await resolveHeight(hashOrHeight);
@@ -519,7 +371,7 @@ export function createChain({ onSelect = () => {} } = {}) {
         console.error("explore chain load:", error);
       }
     } finally {
-      element.classList.remove("loading");
+      delete element.dataset.loading;
     }
   }
 
@@ -580,7 +432,7 @@ export function createChain({ onSelect = () => {} } = {}) {
         return;
       }
 
-      const cubes = [...blocks].reverse().map(createEnteringConfirmedCube);
+      const cubes = [...blocks].reverse().map(createKnownEnteringConfirmedCube);
 
       for (let i = 0; i < batch.placeholders.length; i++) {
         const cube = cubes[i];
@@ -633,93 +485,6 @@ export function createChain({ onSelect = () => {} } = {}) {
     }
   }
 
-  /** @param {HTMLElement} cube */
-  function markCubeEntering(cube) {
-    cube.dataset.enter = "";
-    cube.addEventListener(
-      "animationend",
-      () => {
-        cube.removeAttribute("data-enter");
-      },
-      { once: true },
-    );
-  }
-
-  /** @param {Block} block */
-  function createEnteringConfirmedCube(block) {
-    const cube = createConfirmedCube(block);
-
-    markCubeEntering(cube);
-
-    return cube;
-  }
-
-  /** @param {Block} block */
-  function createConfirmedCube(block) {
-    const { pool, medianFee, feeRange, virtualSize } = block.extras;
-    const cube = createCubeButton(Math.min(1, virtualSize / 1_000_000));
-
-    cube.element.dataset.hash = block.id;
-    cube.element.dataset.height = String(block.height);
-    cube.element.dataset.timestamp = String(block.timestamp);
-    cube.element.title = `Block ${block.height.toLocaleString()}`;
-    blocksByHash.set(block.id, block);
-    onPlainClick(cube.element, () => selectCube(cube.element));
-
-    const date = document.createElement("p");
-    const time = document.createElement("p");
-    const [hh, mm] = formatHHMM(block.timestamp);
-    date.textContent = formatShortDate(block.timestamp);
-    time.append(hh, span(":", "dim"), mm);
-    cube.topFace.append(date, time);
-
-    const height = document.createElement("p");
-    height.classList.add("height");
-    height.append(createHeightElement(block.height));
-
-    const poolElement = document.createElement("div");
-    const logo = createPoolLogo(pool);
-    const name = document.createElement("span");
-    poolElement.classList.add("pool");
-    name.textContent = getPoolDisplayName(pool.name);
-    poolElement.append(logo, name);
-    cube.rightFace.append(height, poolElement);
-
-    const fees = document.createElement("div");
-    const median = document.createElement("p");
-    const range = document.createElement("p");
-    const unit = document.createElement("p");
-    fees.classList.add("fees");
-    median.append(span("~", "dim"), formatFeeRate(medianFee));
-    range.append(
-      formatFeeRate(feeRange[0]),
-      span("-", "dim"),
-      formatFeeRate(feeRange[6]),
-    );
-    unit.classList.add("dim");
-    unit.textContent = "sat/vB";
-    fees.append(median, range, unit);
-    cube.leftFace.append(fees);
-
-    return cube.element;
-  }
-
-  /** @param {HTMLElement} cube */
-  function setConfirmedInterval(cube) {
-    const prev = /** @type {HTMLElement | null} */ (cube.previousElementSibling);
-    if (!prev?.dataset.timestamp) return;
-
-    cube.style.setProperty(
-      "--block-interval",
-      String(
-        Math.max(
-          0,
-          Number(cube.dataset.timestamp) - Number(prev.dataset.timestamp),
-        ),
-      ),
-    );
-  }
-
   /** @param {HTMLButtonElement} cube */
   function prependConfirmed(cube) {
     const oldFirst = /** @type {HTMLElement | null} */ (
@@ -758,61 +523,6 @@ export function createChain({ onSelect = () => {} } = {}) {
     refreshProjected();
   }
 
-  function createProjectedCube() {
-    const cube = createCubeDiv();
-    const date = document.createTextNode("");
-    const hh = document.createTextNode("");
-    const mm = document.createTextNode("");
-    const txs = document.createTextNode("");
-    const txsUnit = document.createTextNode("");
-    const median = document.createTextNode("");
-    const rangeLo = document.createTextNode("");
-    const rangeHi = document.createTextNode("");
-
-    const dateElement = document.createElement("p");
-    const timeElement = document.createElement("p");
-    const txsElement = document.createElement("p");
-    const txsUnitElement = document.createElement("p");
-    const medianElement = document.createElement("p");
-    const rangeElement = document.createElement("p");
-    const unitElement = document.createElement("p");
-
-    cube.element.classList.add("projected");
-    dateElement.append(date);
-    timeElement.append(hh, span(":", "dim"), mm);
-    cube.topFace.append(dateElement, timeElement);
-
-    txsElement.append(txs);
-    txsUnitElement.classList.add("dim");
-    txsUnitElement.append(txsUnit);
-    cube.rightFace.append(txsElement, txsUnitElement);
-
-    medianElement.append(span("~", "dim"), median);
-    rangeElement.append(rangeLo, span("-", "dim"), rangeHi);
-    unitElement.classList.add("dim");
-    unitElement.textContent = "sat/vB";
-    cube.leftFace.append(medianElement, rangeElement, unitElement);
-
-    return {
-      ...cube,
-      parts: { date, hh, mm, txs, txsUnit, median, rangeLo, rangeHi },
-    };
-  }
-
-  /** @param {ReturnType<typeof createProjectedCube>} cube @param {MempoolBlock} block */
-  function updateProjectedCube(cube, block) {
-    cube.element.style.setProperty(
-      "--fill",
-      String(Math.min(1, block.blockVSize / 1_000_000)),
-    );
-
-    cube.parts.txs.nodeValue = block.nTx.toLocaleString();
-    cube.parts.txsUnit.nodeValue = block.nTx === 1 ? "tx" : "txs";
-    cube.parts.median.nodeValue = formatFeeRate(block.medianFee);
-    cube.parts.rangeLo.nodeValue = formatFeeRate(block.feeRange[0]);
-    cube.parts.rangeHi.nodeValue = formatFeeRate(block.feeRange[6]);
-  }
-
   function refreshProjected() {
     if (!projectedCubes.length || !newestTimestamp) return;
 
@@ -824,15 +534,12 @@ export function createChain({ onSelect = () => {} } = {}) {
       const cube = projectedCubes[i];
       const interval = i === 0 ? elapsed : TARGET_BLOCK_SECONDS;
       const timestamp = now + i * TARGET_BLOCK_SECONDS;
-      const [hh, mm] = formatHHMM(timestamp);
 
       if (updateLayout) {
         cube.element.style.setProperty("--block-interval", String(interval));
       }
 
-      cube.parts.date.nodeValue = formatShortDate(timestamp);
-      cube.parts.hh.nodeValue = hh;
-      cube.parts.mm.nodeValue = mm;
+      updateProjectedTime(cube, timestamp);
     }
   }
 
@@ -858,7 +565,7 @@ export function createChain({ onSelect = () => {} } = {}) {
       return;
     }
 
-    const visibleHeight = findVisibleConfirmedHeight();
+    const visibleHeight = findVisibleConfirmedHeight(scrollElement, blocksElement);
     if (projectedCubes.some(({ element }) => isElementVisible(element))) {
       setTipVisible(false);
       return;
@@ -872,65 +579,25 @@ export function createChain({ onSelect = () => {} } = {}) {
   }
 
   /** @param {Element} element */
-  function distanceFromViewport(element) {
-    const viewport = scrollElement.getBoundingClientRect();
-    const rect = element.getBoundingClientRect();
-    const horizontal = isHorizontal();
-
-    if (horizontal) {
-      if (rect.left > viewport.right) return rect.left - viewport.right;
-      if (rect.right < viewport.left) return viewport.left - rect.right;
-      return 0;
-    }
-
-    if (rect.top > viewport.bottom) return rect.top - viewport.bottom;
-    if (rect.bottom < viewport.top) return viewport.top - rect.bottom;
-    return 0;
+  function cubeDistanceFromViewport(element) {
+    return distanceFromViewport(scrollElement, element, isHorizontal());
   }
 
   /** @param {Element} element */
   function isElementVisible(element) {
-    return distanceFromViewport(element) === 0;
+    return cubeDistanceFromViewport(element) === 0;
   }
 
   function shouldLoadNewer() {
     const cube = newestConfirmedCube();
 
-    return cube != null && distanceFromViewport(cube) <= EDGE_LOAD_DISTANCE;
-  }
-
-  function findVisibleConfirmedHeight() {
-    const viewport = scrollElement.getBoundingClientRect();
-    const x = (viewport.left + viewport.right) / 2;
-    const y = (viewport.top + viewport.bottom) / 2;
-
-    for (const element of document.elementsFromPoint(x, y)) {
-      const cube = element.closest(".cube[data-height]");
-
-      if (
-        cube instanceof HTMLElement &&
-        blocksElement.contains(cube) &&
-        !cube.classList.contains("projected")
-      ) {
-        return Number(cube.dataset.height);
-      }
-    }
-
-    return null;
-  }
-
-  /** @param {WheelEvent} event */
-  function olderWheelDelta(event) {
-    return Math.max(
-      0,
-      isHorizontal() ? Math.max(event.deltaX, event.deltaY) : event.deltaY,
-    );
+    return cube != null && cubeDistanceFromViewport(cube) <= EDGE_LOAD_DISTANCE;
   }
 
   scrollElement.addEventListener(
     "wheel",
     (event) => {
-      reserveOlderRunway(olderWheelDelta(event));
+      reserveOlderRunway(olderWheelDelta(event, isHorizontal()));
     },
     { passive: true },
   );

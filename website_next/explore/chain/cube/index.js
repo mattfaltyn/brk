@@ -27,7 +27,7 @@ function populateCube(element, fill) {
   const rightFace = createFace("face-text", "right");
   const leftFace = createFace("face-text", "left");
 
-  element.classList.add("cube");
+  element.dataset.cube = "";
   element.style.setProperty("--fill", String(fill));
   element.append(
     createFace("glass", "bottom"),

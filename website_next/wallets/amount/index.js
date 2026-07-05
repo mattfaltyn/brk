@@ -22,6 +22,8 @@ const amounts = /** @type {BtcAmountRecord[]} */ ([]);
  * @param {BtcAmount} amount
  */
 function renderBtcAmount(element, amount) {
+  element.dataset.btcAmount = "";
+
   if (redaction.isHidden()) {
     element.textContent = FIXED_PRIVATE_TEXT;
     return;
@@ -43,7 +45,6 @@ export function createBtcAmount(tag, sats, options = {}) {
     signed: options.signed === true,
   };
 
-  element.classList.add("amount");
   amounts.push({ element, amount });
   renderBtcAmount(element, amount);
 

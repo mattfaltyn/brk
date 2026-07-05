@@ -2,6 +2,7 @@ import { createXyChart } from "../../chart/xy/index.js";
 import { createChartPoint, createChartPoints } from "../../chart/points.js";
 import { createLinearXScale } from "../../chart/x.js";
 import { createValueYScale } from "../../chart/y.js";
+import { formatFeeRate } from "../../utils/fee-rate.js";
 
 export const FEE_PERCENTILE_LABELS = /** @type {const} */ ([
   "min",
@@ -151,9 +152,8 @@ function plotSeries(percentileSamples, entries, frame) {
 /**
  * @param {number[]} values
  * @param {number} averageRate
- * @param {(value: number) => string} formatRate
  */
-export function createFeeChart(values, averageRate, formatRate) {
+export function createFeeChart(values, averageRate) {
   const percentileSamples = createPercentileSamples(values);
   const entries = createEntries(percentileSamples, averageRate);
   const figure = createXyChart({
@@ -161,11 +161,11 @@ export function createFeeChart(values, averageRate, formatRate) {
     unit: {
       id: "sat/vB",
       name: "satoshis per virtual byte",
-      format: formatRate,
+      format: formatFeeRate,
     },
-    ariaLabel: `Fee rate percentiles from ${formatRate(
+    ariaLabel: `Fee rate percentiles from ${formatFeeRate(
       values[0],
-    )} to ${formatRate(values[values.length - 1])} sat/vB`,
+    )} to ${formatFeeRate(values[values.length - 1])} sat/vB`,
     fallbackHeight: VIEWBOX_HEIGHT,
     series: createSeries(entries),
     plot: (frame) => plotSeries(percentileSamples, entries, frame),

@@ -128,10 +128,11 @@ export function getBtcParts(sats, options = {}) {
  * @param {BtcAmountOptions} [options]
  */
 export function renderBtcAmount(element, sats, options = {}) {
+  element.dataset.btcAmount = "";
   element.replaceChildren(...getBtcParts(sats, options).map((part) => {
     const span = document.createElement("span");
 
-    if (part.muted) span.classList.add("muted");
+    if (part.muted) span.dataset.btcMuted = "";
     span.append(part.text);
 
     return span;
@@ -147,7 +148,6 @@ export function renderBtcAmount(element, sats, options = {}) {
 export function createBtcAmount(tag, sats, options = {}) {
   const element = document.createElement(tag);
 
-  element.classList.add("amount");
   renderBtcAmount(element, sats, options);
 
   return element;
