@@ -20,6 +20,7 @@ dialog[data-block-receipt] {
   font-family: var(--font-mono);
   overscroll-behavior: contain;
   scrollbar-width: none;
+  translate: none;
 
   :is(
     [data-receipt-head] > h2,

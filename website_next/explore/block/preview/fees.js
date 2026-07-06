@@ -1,39 +1,22 @@
-export const FEE_BUCKETS = /** @type {const} */ ([
-  { label: "min", color: "var(--cyan)" },
-  { label: "10%", color: "var(--blue)" },
-  { label: "25%", color: "var(--violet)" },
-  { label: "50%", color: "var(--white)" },
-  { label: "75%", color: "var(--yellow)" },
-  { label: "90%", color: "var(--orange)" },
-  { label: "max", color: "var(--red)" },
-]);
-
-/**
- * @param {number} feeRate
- * @param {number[]} ranges
- */
-export function getFeeBucket(feeRate, ranges) {
-  for (let index = 0; index < ranges.length; index += 1) {
-    if (feeRate <= ranges[index]) return FEE_BUCKETS[index];
-  }
-
-  return FEE_BUCKETS[FEE_BUCKETS.length - 1];
-}
+import {
+  createFeeRateRange,
+  FEE_RATE_STOPS,
+  getFeeRateStopByRank,
+} from "../fee-rates.js";
 
 /**
  * @param {BlockPreviewTransaction[]} transactions
- * @param {number[]} ranges
  */
-export function countFees(transactions, ranges) {
-  const counts = new Map();
+export function createPreviewFeeRange(transactions) {
+  return createFeeRateRange(transactions.map(({ feeRate }) => feeRate));
+}
 
-  for (const transaction of transactions) {
-    const bucket = getFeeBucket(transaction.feeRate, ranges);
-
-    counts.set(bucket.label, (counts.get(bucket.label) ?? 0) + 1);
-  }
-
-  return counts;
+/**
+ * @param {number} index
+ * @param {number} count
+ */
+export function getFeeBucket(index, count) {
+  return getFeeRateStopByRank(index, count);
 }
 
 /**
@@ -51,3 +34,5 @@ export function orderTransactions(transactions) {
  * @property {number} weight
  * @property {number} feeRate
  */
+
+export { FEE_RATE_STOPS as FEE_BUCKETS };

@@ -4,13 +4,12 @@ import { packCells } from "./pack.js";
  * @param {number} weight
  * @param {number} capacity
  * @param {number} columns
- * @param {"floor" | "round"} rounding
  */
-function weightToSpan(weight, capacity, columns, rounding) {
+function weightToSpan(weight, capacity, columns) {
   const cellWeight = capacity / (columns * columns);
   const span = Math.sqrt(weight / cellWeight);
 
-  return Math.max(1, Math[rounding](span));
+  return Math.max(1, Math.round(span));
 }
 
 /**
@@ -18,12 +17,11 @@ function weightToSpan(weight, capacity, columns, rounding) {
  * @param {readonly Cell[]} cells
  * @param {number} capacity
  * @param {number} columns
- * @param {"floor" | "round"} rounding
  */
-function resolveCapacityCells(cells, capacity, columns, rounding) {
+function resolveCapacityCells(cells, capacity, columns) {
   return cells.map((cell) => ({
     ...cell,
-    span: weightToSpan(cell.weight ?? 0, capacity, columns, rounding),
+    span: weightToSpan(cell.weight ?? 0, capacity, columns),
   }));
 }
 
@@ -32,24 +30,12 @@ function resolveCapacityCells(cells, capacity, columns, rounding) {
  * @param {readonly Cell[]} cells
  * @param {number} capacity
  * @param {number} columns
- * @param {"floor" | "round"} rounding
  */
-function createSquareLayout(cells, capacity, columns, rounding) {
-  const resolvedCells = resolveCapacityCells(cells, capacity, columns, rounding);
-  const layouts = packCells(resolvedCells, columns, columns);
+export function createSquareLayout(cells, capacity, columns) {
+  const resolvedCells = resolveCapacityCells(cells, capacity, columns);
+  const layouts = packCells(resolvedCells, columns);
 
-  return layouts === null ? null : { columns, resolvedCells, layouts };
-}
-
-/**
- * @template {CapacityCell} Cell
- * @param {readonly Cell[]} cells
- * @param {number} capacity
- * @param {number} columns
- */
-export function findSquareLayout(cells, capacity, columns) {
-  return createSquareLayout(cells, capacity, columns, "round") ??
-    createSquareLayout(cells, capacity, columns, "floor");
+  return { columns, resolvedCells, layouts: /** @type {NonNullable<typeof layouts>} */ (layouts) };
 }
 
 /**

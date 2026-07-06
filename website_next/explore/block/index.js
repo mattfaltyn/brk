@@ -10,6 +10,15 @@ import { createBlockReceipt } from "./receipt.js";
 
 function noop() {}
 
+/** @param {string} side */
+function createColumn(side) {
+  const column = document.createElement("div");
+
+  column.dataset.blockColumn = side;
+
+  return column;
+}
+
 export function createBlockDetails() {
   const element = document.createElement("section");
   const receipt = createBlockReceipt();
@@ -42,16 +51,21 @@ export function createBlockDetails() {
     clearContent();
 
     const preview = createBlockPreviewPane(block);
+    const left = createColumn("main");
+    const right = createColumn("side");
 
     destroyPreview = preview.destroy;
-    appendPane(content, "mining", [createMinerPane(block)]);
-    appendPane(content, "difficulty", [createDifficultyPane(block)]);
-    appendPane(content, "rewards", [createRewardsPane(extras)]);
-    appendPane(content, "block", [createTransactionPane(block)]);
-    appendPane(content, "preview", [preview.element]);
-    appendPane(content, "fees", [
+    appendPane(left, "preview", [
+      createTransactionPane(block),
+      preview.element,
+    ]);
+    appendPane(right, "mining", [createMinerPane(block)]);
+    appendPane(right, "rewards", [createRewardsPane(extras)]);
+    appendPane(right, "difficulty", [createDifficultyPane(block)]);
+    appendPane(right, "fees", [
       createFeeChart(extras.feeRange, extras.avgFeeRate),
     ]);
+    content.append(left, right);
   }
 
   return /** @type {const} */ ({

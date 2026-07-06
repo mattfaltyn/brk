@@ -1,19 +1,22 @@
 import { createHeatmap } from "../../../heatmap/index.js";
 import { formatFeeRate } from "../../../utils/fee-rate.js";
 import { formatWeight, MAX_BLOCK_WEIGHT } from "../format.js";
+import { getFeeRateColor } from "../fee-rates.js";
 import { loadBlockPreview } from "./data.js";
-import { getFeeBucket, orderTransactions } from "./fees.js";
+import { createPreviewFeeRange, getFeeBucket, orderTransactions } from "./fees.js";
 import { createPreviewLegend } from "./legend.js";
 
 /**
  * @param {BlockPreviewTransaction} transaction
  * @param {number[]} ranges
+ * @param {number} index
+ * @param {number} count
  */
-function createPreviewItem(transaction, ranges) {
-  const bucket = getFeeBucket(transaction.feeRate, ranges);
+function createPreviewItem(transaction, ranges, index, count) {
+  const bucket = getFeeBucket(index, count);
 
   return {
-    color: bucket.color,
+    color: getFeeRateColor(transaction.feeRate, ranges),
     group: bucket.label,
     weight: transaction.weight,
     title: [
@@ -27,29 +30,29 @@ function createPreviewItem(transaction, ranges) {
 
 /**
  * @param {HTMLElement} content
- * @param {number[]} ranges
  * @param {BlockPreviewTransaction[]} transactions
  */
-function renderPreview(content, ranges, transactions) {
+function renderPreview(content, transactions) {
   const figure = document.createElement("figure");
   const caption = document.createElement("figcaption");
   const title = document.createElement("h5");
   const ordered = orderTransactions(transactions);
-  const items = ordered.map((transaction) => {
-    return createPreviewItem(transaction, ranges);
+  const ranges = createPreviewFeeRange(ordered);
+  const items = ordered.map((transaction, index) => {
+    return createPreviewItem(transaction, ranges, index, ordered.length);
   });
 
   figure.dataset.blockPreviewFigure = "";
   caption.dataset.blockPreviewLegend = "";
   title.append("Fees");
-  caption.append(title, createPreviewLegend(ordered, ranges));
+  caption.append(title, createPreviewLegend(ranges));
   figure.append(
     caption,
     createHeatmap(items, {
       origin: "bottom",
       shape: "square",
       capacity: MAX_BLOCK_WEIGHT,
-      columns: 100,
+      columns: 84,
     }),
   );
   content.replaceChildren(figure);
@@ -80,7 +83,7 @@ export function createBlockPreviewPane(block) {
   void loadBlockPreview(block)
     .then((transactions) => {
       if (!live) return;
-      renderPreview(content, block.extras.feeRange, transactions);
+      renderPreview(content, transactions);
     })
     .catch((error) => {
       if (!live) return;

@@ -1,4 +1,4 @@
-import { findSquareLayout } from "./capacity.js";
+import { createSquareLayout } from "./capacity.js";
 import { packCells } from "./pack.js";
 
 /**
@@ -53,26 +53,29 @@ function layoutHeatmap(map, cellMeasure, gapMeasure, cells, options) {
   let columns = Math.max(1, Math.floor((width + gap) / (baseCell + gap)));
   let resolvedCells = cells;
   let layouts = packCells(resolvedCells, columns);
+  let rows;
 
   if (options.shape === "square" && options.capacity !== undefined) {
-    const square = findSquareLayout(
+    const square = createSquareLayout(
       cells,
       options.capacity,
       options.columns ?? columns,
     );
 
-    if (square === null) return;
     columns = square.columns;
     resolvedCells = square.resolvedCells;
     layouts = square.layouts;
-    cell = Math.max(1, Math.floor((width - gap * (columns - 1)) / columns));
+    cell = Math.max(1, (width - gap * (columns - 1)) / columns);
+    rows = columns;
   }
 
   if (layouts === null) return;
 
-  const rows = Math.max(...layouts.map(({ rows }) => rows), 0);
+  rows ??= Math.max(...layouts.map(({ rows }) => rows), 0);
   const gridWidth = unitsToPixels(columns, cell, gap);
-  const offset = Math.max(0, (width - gridWidth) / 2);
+  const offset = options.shape === "square"
+    ? 0
+    : Math.max(0, (width - gridWidth) / 2);
 
   map.style.setProperty("height", `${unitsToPixels(rows, cell, gap)}px`);
 

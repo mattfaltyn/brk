@@ -103,6 +103,13 @@
     gap: 2rem;
   }
 
+  [data-block-column] {
+    display: grid;
+    align-content: start;
+    gap: 2rem;
+    min-width: 0;
+  }
+
   section {
     display: grid;
     align-content: start;
