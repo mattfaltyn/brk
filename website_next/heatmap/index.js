@@ -126,6 +126,7 @@ export function createHeatmap(items, options = {}) {
   }));
 
   map.dataset.heatmap = options.origin ?? "";
+  if (options.shape != null) map.dataset.heatmapShape = options.shape;
   map.append(...cells.map(({ node }) => node));
   observeLayout(
     map,

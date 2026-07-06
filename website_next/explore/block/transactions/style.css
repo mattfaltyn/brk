@@ -1,47 +1,35 @@
 #block-details section[data-group="preview"] {
   [data-block-meta] {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 0.5rem;
+    grid-template-columns: minmax(0, 1fr) repeat(3, max-content);
+    gap: 1.5rem;
     min-width: 0;
   }
 
   [data-block-meta-item] {
-    display: grid;
-    gap: 0.125rem;
+    display: flex;
+    gap: 0.5rem;
+    align-items: baseline;
+    justify-content: space-between;
     min-width: 0;
 
     > span {
-      color: var(--block-meta-color);
-      font-size: var(--font-size-xs);
-      line-height: var(--line-height-xs);
+      flex: 0 0 auto;
+      color: var(--gray);
+      font-size: var(--font-size-sm);
+      line-height: var(--line-height-sm);
       text-transform: uppercase;
     }
 
     strong {
       min-width: 0;
-      overflow-wrap: anywhere;
-      color: var(--block-meta-color);
+      color: var(--white);
       font-size: var(--font-size-sm);
       font-weight: var(--font-weight-strong);
       line-height: var(--line-height-sm);
+      text-align: right;
+      white-space: nowrap;
     }
-  }
-
-  [data-block-meta-item="block"] {
-    --block-meta-color: var(--cyan);
-  }
-
-  [data-block-meta-item="tx"] {
-    --block-meta-color: var(--orange);
-  }
-
-  [data-block-meta-item="input"] {
-    --block-meta-color: var(--yellow);
-  }
-
-  [data-block-meta-item="output"] {
-    --block-meta-color: var(--red);
   }
 }
 

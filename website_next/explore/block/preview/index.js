@@ -3,21 +3,17 @@ import { formatFeeRate } from "../../../utils/fee-rate.js";
 import { formatWeight, MAX_BLOCK_WEIGHT } from "../format.js";
 import { getFeeRateColor } from "../fee-rates.js";
 import { loadBlockPreview } from "./data.js";
-import { createPreviewFeeRange, getFeeBucket, orderTransactions } from "./fees.js";
-import { createPreviewLegend } from "./legend.js";
+import { createPreviewFeeRange, orderTransactions } from "./fees.js";
+import { createVersionFilters, getVersionKey } from "./filters.js";
 
 /**
  * @param {BlockPreviewTransaction} transaction
  * @param {number[]} ranges
- * @param {number} index
- * @param {number} count
  */
-function createPreviewItem(transaction, ranges, index, count) {
-  const bucket = getFeeBucket(index, count);
-
+function createPreviewItem(transaction, ranges) {
   return {
     color: getFeeRateColor(transaction.feeRate, ranges),
-    group: bucket.label,
+    group: getVersionKey(transaction.version),
     weight: transaction.weight,
     title: [
       transaction.txid,
@@ -29,33 +25,41 @@ function createPreviewItem(transaction, ranges, index, count) {
 }
 
 /**
+ * @param {HTMLElement} body
+ * @param {HTMLElement} filters
+ */
+function createFigure(body, filters) {
+  const figure = document.createElement("figure");
+  const caption = document.createElement("figcaption");
+  const title = document.createElement("h5");
+
+  figure.dataset.blockPreviewFigure = "";
+  caption.dataset.blockPreviewLegend = "";
+  title.append("Filters");
+  caption.append(title, filters);
+  figure.append(caption, body);
+
+  return figure;
+}
+
+/**
  * @param {HTMLElement} content
  * @param {BlockPreviewTransaction[]} transactions
  */
 function renderPreview(content, transactions) {
-  const figure = document.createElement("figure");
-  const caption = document.createElement("figcaption");
-  const title = document.createElement("h5");
   const ordered = orderTransactions(transactions);
   const ranges = createPreviewFeeRange(ordered);
-  const items = ordered.map((transaction, index) => {
-    return createPreviewItem(transaction, ranges, index, ordered.length);
+  const items = ordered.map((transaction) => {
+    return createPreviewItem(transaction, ranges);
+  });
+  const heatmap = createHeatmap(items, {
+    origin: "bottom",
+    shape: "square",
+    capacity: MAX_BLOCK_WEIGHT,
+    columns: 84,
   });
 
-  figure.dataset.blockPreviewFigure = "";
-  caption.dataset.blockPreviewLegend = "";
-  title.append("Fees");
-  caption.append(title, createPreviewLegend(ranges));
-  figure.append(
-    caption,
-    createHeatmap(items, {
-      origin: "bottom",
-      shape: "square",
-      capacity: MAX_BLOCK_WEIGHT,
-      columns: 84,
-    }),
-  );
-  content.replaceChildren(figure);
+  content.replaceChildren(createFigure(heatmap, createVersionFilters(ordered, heatmap)));
 }
 
 /**
@@ -67,7 +71,9 @@ function renderStatus(content, status) {
 
   p.dataset.blockPreviewStatus = status;
   p.textContent = status;
-  content.replaceChildren(p);
+  content.replaceChildren(createFigure(p, createVersionFilters([], null, {
+    pending: true,
+  })));
 }
 
 /**

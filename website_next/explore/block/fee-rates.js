@@ -36,34 +36,6 @@ export function createFeeRateRange(feeRates) {
 }
 
 /**
- * @param {number} index
- * @param {number} count
- */
-export function getFeeRateStopByRank(index, count) {
-  const percentile = count === 1 ? 100 : 100 - (index / (count - 1)) * 100;
-
-  for (let stopIndex = 0; stopIndex < FEE_RATE_PERCENTILES.length; stopIndex += 1) {
-    if (percentile <= FEE_RATE_PERCENTILES[stopIndex]) {
-      return FEE_RATE_STOPS[stopIndex];
-    }
-  }
-
-  return FEE_RATE_STOPS[FEE_RATE_STOPS.length - 1];
-}
-
-/**
- * @param {number} feeRate
- * @param {number[]} ranges
- */
-export function getFeeRateStop(feeRate, ranges) {
-  for (let index = 0; index < ranges.length; index += 1) {
-    if (feeRate <= ranges[index]) return FEE_RATE_STOPS[index];
-  }
-
-  return FEE_RATE_STOPS[FEE_RATE_STOPS.length - 1];
-}
-
-/**
  * @param {number} feeRate
  * @param {number[]} ranges
  */

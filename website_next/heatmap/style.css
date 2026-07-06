@@ -7,12 +7,21 @@
   overflow: hidden;
 }
 
+[data-heatmap-shape="square"] {
+  aspect-ratio: 1;
+}
+
 [data-heatmap-cell] {
   position: absolute;
   left: var(--x);
   width: var(--size);
   height: var(--size);
   background: var(--color);
+  transition: opacity 150ms;
+
+  &[data-muted] {
+    opacity: 0.12;
+  }
 }
 
 [data-heatmap="bottom"] > [data-heatmap-cell] {

@@ -1,22 +1,10 @@
-import {
-  createFeeRateRange,
-  FEE_RATE_STOPS,
-  getFeeRateStopByRank,
-} from "../fee-rates.js";
+import { createFeeRateRange } from "../fee-rates.js";
 
 /**
  * @param {BlockPreviewTransaction[]} transactions
  */
 export function createPreviewFeeRange(transactions) {
   return createFeeRateRange(transactions.map(({ feeRate }) => feeRate));
-}
-
-/**
- * @param {number} index
- * @param {number} count
- */
-export function getFeeBucket(index, count) {
-  return getFeeRateStopByRank(index, count);
 }
 
 /**
@@ -34,5 +22,3 @@ export function orderTransactions(transactions) {
  * @property {number} weight
  * @property {number} feeRate
  */
-
-export { FEE_RATE_STOPS as FEE_BUCKETS };
