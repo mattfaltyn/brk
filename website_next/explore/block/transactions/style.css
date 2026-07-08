@@ -1,12 +1,10 @@
-#block-details section[data-group="preview"] {
-  [data-block-meta] {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) repeat(3, max-content);
-    gap: 1.5rem;
-    min-width: 0;
-  }
+[data-block-meta] {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) repeat(3, max-content);
+  gap: 1.5rem;
+  min-width: 0;
 
-  [data-block-meta-item] {
+  > div {
     display: flex;
     gap: 0.5rem;
     align-items: baseline;
@@ -34,9 +32,7 @@
 }
 
 @media (max-width: 48rem) {
-  #block-details section[data-group="preview"] {
-    [data-block-meta] {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
+  [data-block-meta] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

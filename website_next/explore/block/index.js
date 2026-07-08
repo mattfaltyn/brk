@@ -1,12 +1,12 @@
-import { createBlockHeader } from "./header.js";
-import { createMinerPane } from "./miner.js";
-import { createDifficultyPane } from "./difficulty.js";
-import { createRewardsPane } from "./rewards.js";
-import { createTransactionPane } from "./transactions.js";
-import { createFeeChart } from "./fee-chart.js";
+import { createBlockHeader } from "./header/index.js";
+import { createMinerPane } from "./miner/index.js";
+import { createDifficultyPane } from "./difficulty/index.js";
+import { createRewardsPane } from "./rewards/index.js";
+import { createTransactionPane } from "./transactions/index.js";
+import { createFeeChart } from "./fee-chart/index.js";
 import { createBlockPreviewPane } from "./preview/index.js";
 import { appendPane } from "./pane.js";
-import { createBlockReceipt } from "./receipt.js";
+import { createBlockReceipt } from "./receipt/index.js";
 
 function noop() {}
 
@@ -25,6 +25,7 @@ export function createBlockDetails() {
   const header = createBlockHeader([receipt.button]);
   const content = document.createElement("div");
   let destroyPreview = noop;
+  let destroyFeeChart = noop;
 
   element.id = "block-details";
   element.hidden = true;
@@ -33,10 +34,9 @@ export function createBlockDetails() {
   function clearContent() {
     destroyPreview();
     destroyPreview = noop;
+    destroyFeeChart();
+    destroyFeeChart = noop;
 
-    for (const chart of content.querySelectorAll("[data-fee-chart]")) {
-      chart.dispatchEvent(new Event("chart:destroy"));
-    }
     content.textContent = "";
   }
 
@@ -51,10 +51,12 @@ export function createBlockDetails() {
     clearContent();
 
     const preview = createBlockPreviewPane(block);
+    const feeChart = createFeeChart(extras.feeRange, extras.avgFeeRate);
     const left = createColumn("main");
     const right = createColumn("side");
 
     destroyPreview = preview.destroy;
+    destroyFeeChart = feeChart.destroy;
     appendPane(left, "preview", [
       createTransactionPane(block),
       preview.element,
@@ -62,9 +64,7 @@ export function createBlockDetails() {
     appendPane(right, "mining", [createMinerPane(block)]);
     appendPane(right, "rewards", [createRewardsPane(extras)]);
     appendPane(right, "difficulty", [createDifficultyPane(block)]);
-    appendPane(right, "fees", [
-      createFeeChart(extras.feeRange, extras.avgFeeRate),
-    ]);
+    appendPane(right, "fees", [feeChart.element]);
     content.append(left, right);
   }
 

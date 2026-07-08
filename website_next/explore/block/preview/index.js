@@ -1,69 +1,69 @@
-import { createHeatmap } from "../../../heatmap/index.js";
-import { formatFeeRate } from "../../../utils/fee-rate.js";
-import { formatWeight, MAX_BLOCK_WEIGHT } from "../format.js";
-import { getFeeRateColor } from "../fee-rates.js";
-import { loadBlockPreview } from "./data.js";
-import { createPreviewFeeRange, orderTransactions } from "./fees.js";
-import { createPreviewFilters, getFilterKeys, getVersionKey } from "./filters.js";
+import {
+  loadBlockPreview,
+  loadBlockPreviewFilters,
+} from "./data.js";
+import {
+  createPendingPreviewFilters,
+  createPreviewFilters,
+} from "./filters/index.js";
+import { createBlockPreviewHeatmap } from "./heatmap/index.js";
+import { createBlockPreviewInspector } from "./inspector.js";
 
-/**
- * @param {BlockPreviewTransaction} transaction
- * @param {number[]} ranges
- */
-function createPreviewItem(transaction, ranges) {
-  return {
-    color: getFeeRateColor(transaction.feeRate, ranges),
-    group: getVersionKey(transaction.version),
-    groups: getFilterKeys(transaction),
-    weight: transaction.weight,
-    title: [
-      transaction.txid,
-      `v${transaction.version}`,
-      transaction.rbf ? "RBF" : "no RBF",
-      `${transaction.inputCount} in`,
-      `${transaction.outputCount} out`,
-      `${formatFeeRate(transaction.feeRate)} sat/vB`,
-      formatWeight(transaction.weight),
-    ].join(" · "),
-  };
-}
+function noop() {}
 
 /**
  * @param {HTMLElement} body
  * @param {HTMLElement} filters
+ * @param {HTMLElement} [inspector]
  */
-function createFigure(body, filters) {
+function createFigure(body, filters, inspector) {
   const figure = document.createElement("figure");
   const caption = document.createElement("figcaption");
-  const title = document.createElement("h5");
 
   figure.dataset.blockPreviewFigure = "";
   caption.dataset.blockPreviewLegend = "";
-  title.append("Filters");
-  caption.append(title, filters);
+  caption.append(filters);
   figure.append(caption, body);
+  if (inspector) figure.append(inspector);
 
   return figure;
 }
 
 /**
- * @param {HTMLElement} content
- * @param {BlockPreviewTransaction[]} transactions
+ * @template T
+ * @param {() => Promise<T>} load
  */
-function renderPreview(content, transactions) {
-  const ordered = orderTransactions(transactions);
-  const ranges = createPreviewFeeRange(ordered);
-  const items = ordered.map((transaction) => {
-    return createPreviewItem(transaction, ranges);
-  });
-  const heatmap = createHeatmap(items, {
-    origin: "bottom",
-    shape: "square",
-    capacity: MAX_BLOCK_WEIGHT,
-    columns: 84,
-  });
+function memoize(load) {
+  let promise = /** @type {Promise<T> | null} */ (null);
 
-  content.replaceChildren(createFigure(heatmap, createPreviewFilters(ordered, heatmap)));
+  return () => {
+    promise ??= load();
+
+    return promise;
+  };
+}
+
+/**
+ * @param {BlockPreviewTransaction[]} transactions
+ * @param {() => Promise<BlockPreviewFilterState>} loadFilters
+ * @param {AbortSignal} signal
+ */
+function createPreview(transactions, loadFilters, signal) {
+  const loadFilterState = memoize(loadFilters);
+  const inspector = createBlockPreviewInspector(signal, loadFilterState);
+  const heatmap = createBlockPreviewHeatmap(transactions, {
+    onInspect: inspector.inspect,
+  });
+  const filters = createPreviewFilters(loadFilterState, heatmap);
+
+  return {
+    destroy() {
+      inspector.destroy();
+      filters.destroy();
+      heatmap.destroy();
+    },
+    element: createFigure(heatmap.element, filters.element, inspector.element),
+  };
 }
 
 /**
@@ -75,9 +75,7 @@ function renderStatus(content, status) {
 
   p.dataset.blockPreviewStatus = status;
   p.textContent = status;
-  content.replaceChildren(createFigure(p, createPreviewFilters([], null, {
-    pending: true,
-  })));
+  content.replaceChildren(createFigure(p, createPendingPreviewFilters()));
 }
 
 /**
@@ -85,15 +83,24 @@ function renderStatus(content, status) {
  */
 export function createBlockPreviewPane(block) {
   const content = document.createElement("div");
+  const controller = new AbortController();
+  let destroyHeatmap = noop;
   let live = true;
 
   content.dataset.blockPreview = "";
   renderStatus(content, "Loading");
 
-  void loadBlockPreview(block)
-    .then((transactions) => {
+  void loadBlockPreview(block, controller.signal)
+    .then(({ range, transactions }) => {
       if (!live) return;
-      renderPreview(content, transactions);
+      const preview = createPreview(
+        transactions,
+        () => loadBlockPreviewFilters(range, controller.signal),
+        controller.signal,
+      );
+
+      destroyHeatmap = preview.destroy;
+      content.replaceChildren(preview.element);
     })
     .catch((error) => {
       if (!live) return;
@@ -105,11 +112,18 @@ export function createBlockPreviewPane(block) {
     element: content,
     destroy() {
       live = false;
-      for (const heatmap of content.querySelectorAll("[data-heatmap]")) {
-        heatmap.dispatchEvent(new Event("heatmap:destroy"));
-      }
+      controller.abort();
+      destroyHeatmap();
+      destroyHeatmap = noop;
     },
   };
 }
 
-/** @typedef {import("./fees.js").BlockPreviewTransaction} BlockPreviewTransaction */
+/** @typedef {import("./data.js").BlockPreviewTransaction} BlockPreviewTransaction */
+/** @typedef {import("./data.js").BlockPreviewFilterState} BlockPreviewFilterState */
+
+/**
+ * @typedef {Object} BlockPreview
+ * @property {() => void} destroy
+ * @property {HTMLElement} element
+ */

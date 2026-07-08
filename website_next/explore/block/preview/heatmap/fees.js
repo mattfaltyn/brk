@@ -1,4 +1,4 @@
-import { createFeeRateRange } from "../fee-rates.js";
+import { createFeeRateRange } from "../../fee-rates.js";
 
 /**
  * @param {BlockPreviewTransaction[]} transactions
@@ -15,13 +15,4 @@ export function orderTransactions(transactions) {
     .toSorted((a, b) => b.feeRate - a.feeRate || b.weight - a.weight);
 }
 
-/**
- * @typedef {Object} BlockPreviewTransaction
- * @property {string} txid
- * @property {number} version
- * @property {number} weight
- * @property {number} feeRate
- * @property {boolean} rbf
- * @property {number} inputCount
- * @property {number} outputCount
- */
+/** @typedef {import("../data.js").BlockPreviewTransaction} BlockPreviewTransaction */

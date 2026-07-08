@@ -17,7 +17,6 @@ export function packCells(cells, columns, rows) {
 
     fillCells(occupied, position.x, position.y, span);
     usedRows = Math.max(usedRows, position.y + span);
-
     layouts.push({ ...position, span, rows: rows ?? usedRows });
   }
 

@@ -1,18 +1,16 @@
-import { formatBlockFill, formatBytes, formatNumber } from "./format.js";
+import { formatBlockFill, formatBytes, formatNumber } from "../format.js";
 
-/** @typedef {import("../../modules/brk-client/index.js").BlockInfoV1} Block */
+/** @typedef {import("../../../modules/brk-client/index.js").BlockInfoV1} Block */
 
 /**
  * @param {string} label
  * @param {string | Node} value
- * @param {string} type
  */
-function createBlockMetaItem(label, value, type) {
+function createBlockMetaItem(label, value) {
   const item = document.createElement("div");
   const name = document.createElement("span");
   const data = document.createElement("strong");
 
-  item.dataset.blockMetaItem = type;
   name.textContent = label;
   data.append(value);
   item.append(name, data);
@@ -30,11 +28,10 @@ export function createTransactionPane(block) {
     createBlockMetaItem(
       "Block",
       `${formatBytes(block.size)} · ${formatBlockFill(block.weight)}`,
-      "block",
     ),
-    createBlockMetaItem("Tx", formatNumber(block.txCount), "tx"),
-    createBlockMetaItem("Input", formatNumber(extras.totalInputs), "input"),
-    createBlockMetaItem("Output", formatNumber(extras.totalOutputs), "output"),
+    createBlockMetaItem("Tx", formatNumber(block.txCount)),
+    createBlockMetaItem("Input", formatNumber(extras.totalInputs)),
+    createBlockMetaItem("Output", formatNumber(extras.totalOutputs)),
   );
 
   return meta;

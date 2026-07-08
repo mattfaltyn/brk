@@ -46,6 +46,7 @@ export function createXyChart({
   let currentSeries = [];
   /** @type {ChartFrame | undefined} */
   let currentFrame;
+  let renderFrame = 0;
   const pointer = createChartPointer(
     svg,
     () => currentFrame?.height,
@@ -133,12 +134,17 @@ export function createXyChart({
   }
 
   function disconnect() {
+    cancelAnimationFrame(renderFrame);
+    renderFrame = 0;
     pointer.cancel();
     resizeObserver.disconnect();
   }
 
   render();
-  requestAnimationFrame(render);
+  renderFrame = requestAnimationFrame(() => {
+    renderFrame = 0;
+    render();
+  });
   resizeObserver.observe(svg);
   svg.addEventListener("pointerenter", pointer.measure);
   svg.addEventListener("pointermove", pointer.update);
@@ -146,9 +152,11 @@ export function createXyChart({
     pointer.cancel();
     hideMarker();
   });
-  figure.addEventListener("chart:destroy", disconnect, { once: true });
 
-  return figure;
+  return /** @type {const} */ ({
+    destroy: disconnect,
+    element: figure,
+  });
 }
 
 /**

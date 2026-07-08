@@ -7,9 +7,8 @@ import { packCells } from "./pack.js";
  */
 function weightToSpan(weight, capacity, columns) {
   const cellWeight = capacity / (columns * columns);
-  const span = Math.sqrt(weight / cellWeight);
 
-  return Math.max(1, Math.round(span));
+  return Math.max(1, Math.round(Math.sqrt(weight / cellWeight)));
 }
 
 /**
@@ -21,7 +20,7 @@ function weightToSpan(weight, capacity, columns) {
 function resolveCapacityCells(cells, capacity, columns) {
   return cells.map((cell) => ({
     ...cell,
-    span: weightToSpan(cell.weight ?? 0, capacity, columns),
+    span: weightToSpan(cell.weight, capacity, columns),
   }));
 }
 
@@ -47,7 +46,17 @@ function fitCapacityCells(cells, capacity, columns) {
     layouts = packCells(resolvedCells, columns, columns);
   }
 
-  return { resolvedCells, layouts };
+  if (layouts === null) {
+    resolvedCells = resolvedCells.slice(0, columns * columns);
+    layouts = /** @type {NonNullable<typeof layouts>} */ (
+      packCells(resolvedCells, columns, columns)
+    );
+  }
+
+  return {
+    layouts: /** @type {NonNullable<typeof layouts>} */ (layouts),
+    resolvedCells,
+  };
 }
 
 /**
@@ -57,13 +66,10 @@ function fitCapacityCells(cells, capacity, columns) {
  * @param {number} columns
  */
 export function createSquareLayout(cells, capacity, columns) {
-  const { resolvedCells, layouts } = fitCapacityCells(cells, capacity, columns);
-
-  return { columns, resolvedCells, layouts: /** @type {NonNullable<typeof layouts>} */ (layouts) };
+  return { columns, ...fitCapacityCells(cells, capacity, columns) };
 }
 
 /**
  * @typedef {Object} CapacityCell
- * @property {number} span
- * @property {number | undefined} weight
+ * @property {number} weight
  */

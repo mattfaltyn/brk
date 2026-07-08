@@ -1,9 +1,9 @@
-import { createXyChart } from "../../chart/xy/index.js";
-import { createChartPoint, createChartPoints } from "../../chart/points.js";
-import { createLinearXScale } from "../../chart/x.js";
-import { createValueYScale } from "../../chart/y.js";
-import { formatFeeRate } from "../../utils/fee-rate.js";
-import { FEE_RATE_PERCENTILES, FEE_RATE_STOPS } from "./fee-rates.js";
+import { createXyChart } from "../../../chart/xy/index.js";
+import { createChartPoint, createChartPoints } from "../../../chart/points.js";
+import { createLinearXScale } from "../../../chart/x.js";
+import { createValueYScale } from "../../../chart/y.js";
+import { formatFeeRate } from "../../../utils/fee-rate.js";
+import { FEE_RATE_PERCENTILES, FEE_RATE_STOPS } from "../fee-rates.js";
 
 const VIEWBOX_HEIGHT = 180;
 const FEE_AVERAGE_COLOR = "var(--white)";
@@ -136,7 +136,7 @@ function plotSeries(percentileSamples, entries, frame) {
 export function createFeeChart(values, averageRate) {
   const percentileSamples = createPercentileSamples(values);
   const entries = createEntries(percentileSamples, averageRate);
-  const figure = createXyChart({
+  const chart = createXyChart({
     title: "Fees",
     unit: {
       id: "sat/vB",
@@ -152,9 +152,9 @@ export function createFeeChart(values, averageRate) {
     marker: false,
   });
 
-  figure.dataset.feeChart = "";
+  chart.element.dataset.feeChart = "";
 
-  return figure;
+  return chart;
 }
 
 /**

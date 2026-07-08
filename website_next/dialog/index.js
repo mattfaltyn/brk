@@ -12,6 +12,7 @@ function closeOnBackdrop(event) {
  * @param {HTMLElement} host
  */
 export function openDialog(dialog, host) {
+  dialog.dataset.dialog = "";
   host.append(dialog);
   dialog.addEventListener("close", async () => {
     await waitForTransition();

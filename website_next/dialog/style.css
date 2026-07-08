@@ -1,4 +1,4 @@
-dialog {
+dialog[data-dialog] {
   --dialog-space: 1.5rem;
 
   color-scheme: light;
