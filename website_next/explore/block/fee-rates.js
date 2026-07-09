@@ -28,10 +28,10 @@ function percentileValue(values, percentile) {
 
 /** @param {number[]} feeRates */
 export function createFeeRateRange(feeRates) {
-  const values = feeRates.toSorted((a, b) => a - b);
+  feeRates.sort((a, b) => a - b);
 
   return FEE_RATE_PERCENTILES.map((percentile) => {
-    return percentileValue(values, percentile);
+    return percentileValue(feeRates, percentile);
   });
 }
 

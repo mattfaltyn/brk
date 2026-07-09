@@ -1,101 +1,12 @@
 import { MAX_BLOCK_WEIGHT } from "../../format.js";
 import { createPreviewFeeRange, orderTransactions } from "./fees.js";
 import { createSquareLayout } from "./capacity.js";
-import { getCanvasColor, getCanvasFeeRateColor } from "./color.js";
+import { getCanvasFeeRateColor } from "./color.js";
+import { createPreviewRects, hitTest } from "./geometry.js";
+import { drawPreview } from "./draw.js";
 
 const COLUMNS = 84;
-const MUTED_ALPHA = 0.12;
-const GAP_REFERENCE_WIDTH = 640;
-const HOVER_FILL_ALPHA = 0.18;
-const HOVER_MARKER_MIN_SIZE = 10;
-
-/**
- * @param {number} count
- * @param {number} cell
- * @param {number} gap
- */
-function unitsToPixels(count, cell, gap) {
-  return count * cell + Math.max(0, count - 1) * gap;
-}
-
-/**
- * @param {HTMLCanvasElement} canvas
- * @param {number} width
- */
-function getGap(canvas, width) {
-  const maxGap = Number.parseFloat(
-    getComputedStyle(canvas).getPropertyValue("--block-preview-heatmap-gap"),
-  ) || 0;
-
-  return Math.max(1, maxGap * Math.min(1, width / GAP_REFERENCE_WIDTH));
-}
-
-/**
- * @param {BlockPreviewTransaction} transaction
- * @param {BlockPreviewFilterState | null} filterState
- */
-function getTransactionMask(transaction, filterState) {
-  return filterState?.masks[transaction.txIndex - filterState.start] ?? 0;
-}
-
-/**
- * @param {CanvasRenderingContext2D} context
- * @param {number} alpha
- * @param {string} color
- * @param {PreviewRect} rect
- */
-function drawRect(context, alpha, color, rect) {
-  context.globalAlpha = alpha;
-  context.fillStyle = color;
-  context.fillRect(rect.x, rect.y, rect.size, rect.size);
-}
-
-/**
- * @param {CanvasRenderingContext2D} context
- * @param {PreviewRect} rect
- * @param {CanvasColors} colors
- */
-function drawHover(context, rect, colors) {
-  const size = Math.max(rect.size, HOVER_MARKER_MIN_SIZE);
-  const x = rect.x + rect.size / 2 - size / 2;
-  const y = rect.y + rect.size / 2 - size / 2;
-  const width = Math.max(1, Math.min(3, size / 5));
-
-  context.globalAlpha = 1;
-  context.fillStyle = colors.white;
-  context.globalAlpha = HOVER_FILL_ALPHA;
-  context.fillRect(x, y, size, size);
-  context.globalAlpha = 1;
-  context.lineJoin = "miter";
-  context.lineWidth = width + 2;
-  context.strokeStyle = colors.black;
-  context.strokeRect(x, y, size, size);
-  context.lineWidth = width;
-  context.strokeStyle = colors.white;
-  context.strokeRect(x, y, size, size);
-}
-
-/**
- * @param {PreviewRect[]} rects
- * @param {number} x
- * @param {number} y
- */
-function hitTest(rects, x, y) {
-  for (let index = rects.length - 1; index >= 0; index -= 1) {
-    const rect = rects[index];
-
-    if (
-      x >= rect.x &&
-      x <= rect.x + rect.size &&
-      y >= rect.y &&
-      y <= rect.y + rect.size
-    ) {
-      return rect.transaction;
-    }
-  }
-
-  return null;
-}
+const VISIBLE_CELLS = COLUMNS * COLUMNS;
 
 /**
  * @param {BlockPreviewTransaction[]} transactions
@@ -109,22 +20,20 @@ export function createBlockPreviewHeatmap(transactions, options = {}) {
   );
   const ordered = orderTransactions(transactions);
   const ranges = createPreviewFeeRange(ordered);
-  const cells = ordered.map((transaction) => ({
+  const visible = ordered.slice(0, VISIBLE_CELLS);
+  const cells = visible.map((transaction) => ({
     color: getCanvasFeeRateColor(transaction.feeRate, ranges),
     transaction,
     weight: transaction.weight,
   }));
   const square = createSquareLayout(cells, MAX_BLOCK_WEIGHT, COLUMNS);
-  const colors = {
-    black: getCanvasColor("var(--black)"),
-    white: getCanvasColor("var(--white)"),
-  };
   let disabledMask = 0;
   let filterState = /** @type {BlockPreviewFilterState | null} */ (null);
   let frame = 0;
   let inspected = /** @type {BlockPreviewTransaction | null} */ (null);
   let previewMask = /** @type {number | null} */ (null);
   let rects = /** @type {PreviewRect[]} */ ([]);
+  let rectWidth = 0;
   let capturedPointer = /** @type {number | null} */ (null);
 
   canvas.dataset.blockPreviewHeatmap = "";
@@ -142,40 +51,21 @@ export function createBlockPreviewHeatmap(transactions, options = {}) {
       canvas.height = size;
     }
 
-    const gap = getGap(canvas, width);
-    const cell = Math.max(1, (width - gap * (square.columns - 1)) / square.columns);
-    const unit = cell + gap;
-    const activeMask = previewMask ?? disabledMask;
-    let inspectedRect = /** @type {PreviewRect | null} */ (null);
-
-    rects = square.layouts.map((layout, index) => {
-      const transaction = square.resolvedCells[index].transaction;
-      const rectSize = unitsToPixels(layout.span, cell, gap);
-
-      return {
-        color: square.resolvedCells[index].color,
-        size: rectSize,
-        transaction,
-        x: layout.x * unit,
-        y: width - layout.y * unit - rectSize,
-      };
-    });
+    if (rectWidth !== width) {
+      rectWidth = width;
+      rects = createPreviewRects(square, canvas, width);
+    }
 
     context.setTransform(dpr, 0, 0, dpr, 0, 0);
     context.clearRect(0, 0, width, width);
-
-    for (const rect of rects) {
-      const mask = getTransactionMask(rect.transaction, filterState);
-      const alpha = previewMask === null
-        ? (mask & activeMask ? MUTED_ALPHA : 1)
-        : (mask & activeMask ? 1 : MUTED_ALPHA);
-
-      drawRect(context, alpha, rect.color, rect);
-      if (rect.transaction === inspected) inspectedRect = rect;
-    }
-
-    if (inspectedRect !== null) drawHover(context, inspectedRect, colors);
-    context.globalAlpha = 1;
+    drawPreview({
+      context,
+      disabledMask,
+      filterState,
+      inspected,
+      previewMask,
+      rects,
+    });
   }
 
   function scheduleDraw() {
@@ -289,11 +179,15 @@ export function createBlockPreviewHeatmap(transactions, options = {}) {
     },
     /** @param {number | null} mask */
     setPreviewMask(mask) {
+      if (previewMask === mask) return;
+
       previewMask = mask;
       scheduleDraw();
     },
     /** @param {number} mask */
     setDisabledMask(mask) {
+      if (disabledMask === mask) return;
+
       disabledMask = mask;
       scheduleDraw();
     },
@@ -309,22 +203,9 @@ export function createBlockPreviewHeatmap(transactions, options = {}) {
 /** @typedef {import("../data.js").BlockPreviewFilterState} BlockPreviewFilterState */
 
 /**
- * @typedef {Object} PreviewRect
- * @property {string} color
- * @property {number} size
- * @property {BlockPreviewTransaction} transaction
- * @property {number} x
- * @property {number} y
- */
-
-/**
- * @typedef {Object} CanvasColors
- * @property {string} black
- * @property {string} white
- */
-
-/**
  * @typedef {Object} BlockPreviewPointer
  * @property {number} clientX
  * @property {number} clientY
  */
+
+/** @typedef {import("./geometry.js").PreviewRect} PreviewRect */

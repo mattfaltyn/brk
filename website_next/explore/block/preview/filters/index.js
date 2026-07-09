@@ -1,6 +1,6 @@
 import { createLegendItem } from "../../../../legend/index.js";
 import { formatNumber } from "../../format.js";
-import { FILTER_GROUP_LABELS, FILTER_GROUPS, FILTERS } from "./model.js";
+import { FILTER_GROUP_FILTERS, FILTER_GROUP_LABELS, FILTERS } from "./model.js";
 
 const SUMMARY_LABEL_COUNT = 3;
 const CAN_HOVER = matchMedia("(hover: hover) and (pointer: fine)");
@@ -130,10 +130,10 @@ export function createPreviewFilters(loadFilters, heatmap) {
   function renderFilters(filterState) {
     clearGroups(panel, summary);
 
-    for (const { key, label } of FILTER_GROUPS) {
+    for (const { label, filters } of FILTER_GROUP_FILTERS) {
       const group = createFilterGroup(label);
 
-      for (const filter of FILTERS.filter((item) => item.group === key)) {
+      for (const filter of filters) {
         const { button, value } = createLegendItem({
           ariaLabel: filter.label,
           color: filter.color,
@@ -222,4 +222,10 @@ export function createPreviewFilters(loadFilters, heatmap) {
 }
 
 /** @typedef {import("../data.js").BlockPreviewFilterState} BlockPreviewFilterState */
-/** @typedef {ReturnType<import("../heatmap/index.js").createBlockPreviewHeatmap>} BlockPreviewHeatmap */
+
+/**
+ * @typedef {Object} BlockPreviewHeatmap
+ * @property {(mask: number | null) => void} setPreviewMask
+ * @property {(mask: number) => void} setDisabledMask
+ * @property {(state: BlockPreviewFilterState) => void} setFilterState
+ */

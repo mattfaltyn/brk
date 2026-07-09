@@ -35,6 +35,13 @@ export const FILTERS = FILTER_DEFS.map(([group, label, key, color], index) => {
   return /** @type {const} */ ({ bit: 1 << index, color, group, index, key, label });
 });
 
+export const FILTER_GROUP_FILTERS = FILTER_GROUPS.map((group) => {
+  return /** @type {const} */ ({
+    ...group,
+    filters: FILTERS.filter((filter) => filter.group === group.key),
+  });
+});
+
 export const FILTER_GROUP_LABELS = new Map(FILTER_GROUPS.map(({ key, label }) => {
   return [key, label];
 }));

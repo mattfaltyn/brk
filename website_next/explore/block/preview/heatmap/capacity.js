@@ -31,26 +31,24 @@ function resolveCapacityCells(cells, capacity, columns) {
  * @param {number} columns
  */
 function fitCapacityCells(cells, capacity, columns) {
-  let resolvedCells = resolveCapacityCells(cells, capacity, columns);
+  let resolvedCells = resolveCapacityCells(cells, capacity, columns).slice(
+    0,
+    columns * columns,
+  );
   let layouts = packCells(resolvedCells, columns, columns);
 
   while (layouts === null) {
-    const largest = Math.max(...resolvedCells.map(({ span }) => span));
+    let largest = 0;
+
+    for (const { span } of resolvedCells) largest = Math.max(largest, span);
 
     if (largest <= 1) break;
 
-    resolvedCells = resolvedCells.map((cell) => ({
-      ...cell,
-      span: cell.span === largest ? largest - 1 : cell.span,
-    }));
-    layouts = packCells(resolvedCells, columns, columns);
-  }
+    for (const cell of resolvedCells) {
+      if (cell.span === largest) cell.span -= 1;
+    }
 
-  if (layouts === null) {
-    resolvedCells = resolvedCells.slice(0, columns * columns);
-    layouts = /** @type {NonNullable<typeof layouts>} */ (
-      packCells(resolvedCells, columns, columns)
-    );
+    layouts = packCells(resolvedCells, columns, columns);
   }
 
   return {

@@ -37,7 +37,10 @@ function memoize(load) {
   let promise = /** @type {Promise<T> | null} */ (null);
 
   return () => {
-    promise ??= load();
+    promise ??= load().catch((error) => {
+      promise = null;
+      throw error;
+    });
 
     return promise;
   };
