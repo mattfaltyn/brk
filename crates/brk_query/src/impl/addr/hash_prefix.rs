@@ -16,50 +16,57 @@ impl Query {
         }
 
         let prefix = AddrHashPrefix::parse(prefix)?;
-        let store = self
-            .indexer()
-            .stores
-            .addr_type_to_addr_hash_to_addr_index
-            .get(addr_type)
-            .data()?;
-        let safe_type_index = self.safe_lengths().to_type_index(addr_type);
         let addr_readers = self.indexer().vecs.addrs.addr_readers();
         let mut addresses = Vec::new();
         let max_hash = AddrHash::new(u64::MAX);
 
-        if let Some(upper) = prefix.upper {
-            for (_, type_index) in store.range(prefix.lower..upper) {
-                if type_index >= safe_type_index {
-                    continue;
+        for &search_type in matching_addr_types(&addr_type) {
+            let store = self
+                .indexer()
+                .stores
+                .addr_type_to_addr_hash_to_addr_index
+                .get(search_type)
+                .data()?;
+            let safe_type_index = self.safe_lengths().to_type_index(search_type);
+
+            if let Some(upper) = prefix.upper {
+                for (_, type_index) in store.range(prefix.lower..upper) {
+                    if type_index >= safe_type_index {
+                        continue;
+                    }
+
+                    let script = addr_readers.script_pubkey(search_type, type_index);
+                    addresses.push(Addr::try_from((&script, search_type))?);
+
+                    if addresses.len() > ADDR_HASH_PREFIX_MATCH_LIMIT {
+                        break;
+                    }
+                }
+            } else {
+                for (_, type_index) in store.range(prefix.lower..max_hash) {
+                    if type_index >= safe_type_index {
+                        continue;
+                    }
+
+                    let script = addr_readers.script_pubkey(search_type, type_index);
+                    addresses.push(Addr::try_from((&script, search_type))?);
+
+                    if addresses.len() > ADDR_HASH_PREFIX_MATCH_LIMIT {
+                        break;
+                    }
                 }
 
-                let script = addr_readers.script_pubkey(addr_type, type_index);
-                addresses.push(Addr::try_from((&script, addr_type))?);
-
-                if addresses.len() > ADDR_HASH_PREFIX_MATCH_LIMIT {
-                    break;
+                if addresses.len() <= ADDR_HASH_PREFIX_MATCH_LIMIT
+                    && let Some(type_index) = store.get(&max_hash)?.map(|cow| cow.into_owned())
+                    && type_index < safe_type_index
+                {
+                    let script = addr_readers.script_pubkey(search_type, type_index);
+                    addresses.push(Addr::try_from((&script, search_type))?);
                 }
             }
-        } else {
-            for (_, type_index) in store.range(prefix.lower..max_hash) {
-                if type_index >= safe_type_index {
-                    continue;
-                }
 
-                let script = addr_readers.script_pubkey(addr_type, type_index);
-                addresses.push(Addr::try_from((&script, addr_type))?);
-
-                if addresses.len() > ADDR_HASH_PREFIX_MATCH_LIMIT {
-                    break;
-                }
-            }
-
-            if addresses.len() <= ADDR_HASH_PREFIX_MATCH_LIMIT
-                && let Some(type_index) = store.get(&max_hash)?.map(|cow| cow.into_owned())
-                && type_index < safe_type_index
-            {
-                let script = addr_readers.script_pubkey(addr_type, type_index);
-                addresses.push(Addr::try_from((&script, addr_type))?);
+            if addresses.len() > ADDR_HASH_PREFIX_MATCH_LIMIT {
+                break;
             }
         }
 
@@ -72,6 +79,13 @@ impl Query {
             truncated,
             addresses,
         })
+    }
+}
+
+fn matching_addr_types(addr_type: &OutputType) -> &[OutputType] {
+    match addr_type {
+        OutputType::P2PK65 | OutputType::P2PK33 => &[OutputType::P2PK65, OutputType::P2PK33],
+        _ => std::slice::from_ref(addr_type),
     }
 }
 
@@ -111,5 +125,25 @@ impl AddrHashPrefix {
             "hash prefix must be 1 to {} hexadecimal characters",
             Self::MAX_NIBBLES
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn p2pk_wire_type_searches_both_internal_types() {
+        let wire_type: OutputType = serde_json::from_str(r#""p2pk""#).unwrap();
+
+        assert_eq!(wire_type, OutputType::P2PK65);
+        assert_eq!(
+            matching_addr_types(&wire_type),
+            &[OutputType::P2PK65, OutputType::P2PK33]
+        );
+        assert_eq!(
+            matching_addr_types(&OutputType::P2PKH),
+            &[OutputType::P2PKH]
+        );
     }
 }
