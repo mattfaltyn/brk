@@ -3,7 +3,6 @@
 use std::{
     fs,
     path::{Path, PathBuf},
-    thread,
     time::{Duration, Instant},
 };
 
@@ -11,7 +10,6 @@ use brk_error::Result;
 use brk_reader::{Reader, XORBytes};
 use brk_rpc::Client;
 use brk_types::{BlockHash, Height};
-use fjall::PersistMode;
 use tracing::{debug, error, info};
 use vecdb::{
     Exit, RawDBError, ReadOnlyClone, ReadableVec, Ro, Rw, StorageMode, WritableVec, unlikely,
@@ -205,23 +203,8 @@ impl Indexer {
             info!("Exporting...");
             let i = Instant::now();
             let _lock = exit.lock();
-            thread::scope(|s| -> Result<()> {
-                let stores_res = s.spawn(|| -> Result<()> {
-                    let i = Instant::now();
-                    stores.commit(height)?;
-                    debug!("Stores exported in {:?}", i.elapsed());
-                    Ok(())
-                });
-                let vecs_res = s.spawn(|| -> Result<()> {
-                    let i = Instant::now();
-                    vecs.flush(height)?;
-                    debug!("Vecs exported in {:?}", i.elapsed());
-                    Ok(())
-                });
-                stores_res.join().unwrap()?;
-                vecs_res.join().unwrap()?;
-                Ok(())
-            })?;
+            vecs.flush(height)?;
+            stores.commit(height)?;
             info!("Exported in {:?}", i.elapsed());
             Ok(())
         };
@@ -320,9 +303,8 @@ impl Indexer {
         drop(readers);
 
         let lock = exit.lock();
-        let tasks = self.stores.take_all_pending_ingests(lengths.height)?;
+        let commit = self.stores.take_pending_commit(lengths.height)?;
         self.vecs.stamped_write(lengths.height)?;
-        let fjall_db = self.stores.db.clone();
 
         self.vecs.db.run_bg(move |db| {
             let _lock = lock;
@@ -332,21 +314,8 @@ impl Indexer {
             info!("Exporting...");
             let i = Instant::now();
 
-            if !tasks.is_empty() {
-                let i = Instant::now();
-                for task in tasks {
-                    task().map_err(vecdb::RawDBError::other)?;
-                }
-                debug!("Stores committed in {:?}", i.elapsed());
-
-                let i = Instant::now();
-                fjall_db
-                    .persist(PersistMode::SyncData)
-                    .map_err(RawDBError::other)?;
-                debug!("Stores persisted in {:?}", i.elapsed());
-            }
-
             db.compact()?;
+            commit().map_err(RawDBError::other)?;
 
             info!("Exported in {:?}", i.elapsed());
             Ok(())
