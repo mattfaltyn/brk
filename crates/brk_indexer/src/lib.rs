@@ -31,6 +31,10 @@ pub use safe_lengths::SafeLengths;
 pub use stores::Stores;
 pub use vecs::*;
 
+fn shared_tip_height(vecs_next_height: Height, stores_next_height: Height) -> Option<Height> {
+    vecs_next_height.min(stores_next_height).decremented()
+}
+
 pub struct Indexer<M: StorageMode = Rw> {
     path: PathBuf,
     pub vecs: Vecs<M>,
@@ -155,7 +159,14 @@ impl Indexer {
 
         debug!("Starting indexing...");
 
-        let last_blockhash = self.vecs.blocks.blockhash.collect_last();
+        let last_blockhash = shared_tip_height(self.vecs.next_height(), self.stores.next_height())
+            .and_then(|height| {
+                self.vecs
+                    .blocks
+                    .blockhash
+                    .collect_one_at(usize::from(height))
+            })
+            .or_else(|| self.vecs.blocks.blockhash.collect_last());
         // Rollback sim
         // let last_blockhash = self
         //     .vecs
@@ -360,5 +371,23 @@ impl ReadOnlyClone for Indexer {
             stores: self.stores.clone(),
             safe_lengths: self.safe_lengths.clone(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn shared_tip_uses_lower_checkpoint() {
+        assert_eq!(
+            shared_tip_height(Height::new(43), Height::new(40)),
+            Some(Height::new(39))
+        );
+        assert_eq!(
+            shared_tip_height(Height::new(40), Height::new(43)),
+            Some(Height::new(39))
+        );
+        assert_eq!(shared_tip_height(Height::ZERO, Height::new(43)), None);
     }
 }

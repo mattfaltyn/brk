@@ -228,6 +228,11 @@ impl Stores {
         }))
     }
 
+    /// Compatibility wrapper returning the ordered commit as a single task.
+    pub fn take_all_pending_ingests(&mut self, height: Height) -> Result<Vec<StoreTask>> {
+        Ok(vec![self.take_pending_commit(height)?])
+    }
+
     /// Rewrites reverse-key entries below the lowered bound. In-flight
     /// readers may briefly see torn state.
     pub fn rollback_if_needed(
@@ -442,8 +447,9 @@ mod tests {
         let key = BlockHashPrefix::from(7_u64);
         let mut stores = Stores::forced_import(&path, Version::ZERO)?;
         stores.blockhash_prefix_to_height.insert(key, height);
-        let commit = stores.take_pending_commit(height)?;
-        commit()?;
+        let mut commits = stores.take_all_pending_ingests(height)?;
+        assert_eq!(commits.len(), 1);
+        commits.pop().unwrap()()?;
 
         assert_eq!(stores.next_height(), height.incremented());
         assert_eq!(
